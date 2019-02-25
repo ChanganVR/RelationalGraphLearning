@@ -24,8 +24,14 @@ class ValueNetwork(nn.Module):
         super().__init__()
         self.value_network = mlp(input_dim, mlp_dims)
 
-    def forward(self, state):
-        value = self.value_network(state)
+    def forward(self, state_input):
+        # input size: (batch_size, # of humans, state_length)
+        if isinstance(state_input, tuple):
+            state = state_input[0]
+        else:
+            state = state_input
+
+        value = self.value_network(state.squeeze(dim=1))
         return value
 
 
@@ -56,21 +62,20 @@ class CADRL(Policy):
 
     def configure(self, config):
         self.set_common_parameters(config)
-        mlp_dims = [int(x) for x in config.get('cadrl', 'mlp_dims').split(', ')]
-        self.model = ValueNetwork(self.joint_state_dim, mlp_dims)
-        self.multiagent_training = config.getboolean('cadrl', 'multiagent_training')
+        self.model = ValueNetwork(self.joint_state_dim, config.cadrl.mlp_dims)
+        self.multiagent_training = config.cadrl.multiagent_training
         logging.info('Policy: CADRL without occupancy map')
 
     def set_common_parameters(self, config):
-        self.gamma = config.getfloat('rl', 'gamma')
-        self.kinematics = config.get('action_space', 'kinematics')
-        self.sampling = config.get('action_space', 'sampling')
-        self.speed_samples = config.getint('action_space', 'speed_samples')
-        self.rotation_samples = config.getint('action_space', 'rotation_samples')
-        self.query_env = config.getboolean('action_space', 'query_env')
-        self.cell_num = config.getint('om', 'cell_num')
-        self.cell_size = config.getfloat('om', 'cell_size')
-        self.om_channel_size = config.getint('om', 'om_channel_size')
+        self.gamma = config.rl.gamma
+        self.kinematics = config.action_space.kinematics
+        self.sampling = config.action_space.sampling
+        self.speed_samples = config.action_space.speed_samples
+        self.rotation_samples = config.action_space.rotation_samples
+        self.query_env = config.action_space.query_env
+        self.cell_num = config.om.cell_num
+        self.cell_size = config.om.cell_size
+        self.om_channel_size = config.om.om_channel_size
 
     def set_device(self, device):
         self.device = device
@@ -88,7 +93,7 @@ class CADRL(Policy):
         if holonomic:
             rotations = np.linspace(0, 2 * np.pi, self.rotation_samples, endpoint=False)
         else:
-            rotations = np.linspace(-np.pi / 4, np.pi / 4, self.rotation_samples)
+            rotations = np.linspace(-np.pi / 3, np.pi / 3, self.rotation_samples)
 
         action_space = [ActionXY(0, 0) if holonomic else ActionRot(0, 0)]
         for rotation, speed in itertools.product(rotations, speeds):
@@ -145,6 +150,9 @@ class CADRL(Policy):
             return ActionXY(0, 0) if self.kinematics == 'holonomic' else ActionRot(0, 0)
         if self.action_space is None:
             self.build_action_space(state.self_state.v_pref)
+        if not state.human_states:
+            assert self.phase != 'train'
+            return self.select_greedy_action(state.self_state)
 
         probability = np.random.random()
         if self.phase == 'train' and probability < self.epsilon:
@@ -155,9 +163,15 @@ class CADRL(Policy):
             max_action = None
             for action in self.action_space:
                 next_self_state = self.propagate(state.self_state, action)
-                ob, reward, done, info = self.env.onestep_lookahead(action)
+                if self.query_env:
+                    next_human_states, reward, done, info = self.env.onestep_lookahead(action)
+                else:
+                    next_human_states = [self.propagate(human_state, ActionXY(human_state.vx, human_state.vy))
+                                         for human_state in state.human_states]
+                    reward = self.compute_reward(next_self_state, next_human_states)
                 batch_next_states = torch.cat([torch.Tensor([next_self_state + next_human_state]).to(self.device)
-                                              for next_human_state in ob], dim=0)
+                                              for next_human_state in next_human_states], dim=0)
+
                 # VALUE UPDATE
                 outputs = self.model(self.rotate(batch_next_states))
                 min_output, min_index = torch.min(outputs, 0)
@@ -172,6 +186,43 @@ class CADRL(Policy):
 
         return max_action
 
+    def select_greedy_action(self, self_state):
+        # find the greedy action given kinematic constraints and return the closest action in the action space
+        direction = np.arctan2(self_state.gy - self_state.py, self_state.gx - self_state.px)
+        distance = np.linalg.norm((self_state.gy - self_state.py, self_state.gx - self_state.px))
+        if self.kinematics == 'holonomic':
+            speed = min(distance / self.time_step, self_state.v_pref)
+            vx = np.cos(direction) * speed
+            vy = np.sin(direction) * speed
+
+            min_diff = float('inf')
+            closest_action = None
+            for action in self.action_space:
+                diff = np.linalg.norm(np.array(action) - np.array((vx, vy)))
+                if diff < min_diff:
+                    min_diff = diff
+                    closest_action = action
+        else:
+            rotation = direction - self_state.theta
+            # if goal is not in the field of view, always rotate first
+            if rotation < self.rotations[0]:
+                closest_action = ActionRot(self.speeds[0], self.rotations[0])
+            elif rotation > self.rotations[-1]:
+                closest_action = ActionRot(self.speeds[0], self.rotations[-1])
+            else:
+                speed = min(distance / self.time_step, self_state.v_pref)
+
+                min_diff = float('inf')
+                closest_action = None
+                for action in self.action_space:
+                    diff = np.linalg.norm(np.array((np.cos(action.r) * action.v, np.sin(action.r) * action.v)) -
+                                          np.array((np.cos(rotation) * speed), np.sin(rotation) * action.v))
+                    if diff < min_diff:
+                        min_diff = diff
+                        closest_action = action
+
+        return closest_action
+
     def transform(self, state):
         """
         Take the state passed from agent and transform it to tensor for batch training
@@ -179,9 +230,8 @@ class CADRL(Policy):
         :param state:
         :return: tensor of shape (len(state), )
         """
-        assert len(state.human_states) == 1
-        state = torch.Tensor(state.self_state + state.human_states[0]).to(self.device)
-        state = self.rotate(state.unsqueeze(0)).squeeze(dim=0)
+        state = torch.Tensor([state.self_state + state.human_states[0]]).to(self.device)
+        state = self.rotate(state)
         return state
 
     def rotate(self, state):
@@ -206,8 +256,8 @@ class CADRL(Policy):
         if self.kinematics == 'unicycle':
             theta = (state[:, 8] - rot).reshape((batch, -1))
         else:
-            # set theta to be zero since it's not used
             theta = torch.zeros_like(v_pref)
+
         vx1 = (state[:, 11] * torch.cos(rot) + state[:, 12] * torch.sin(rot)).reshape((batch, -1))
         vy1 = (state[:, 12] * torch.cos(rot) - state[:, 11] * torch.sin(rot)).reshape((batch, -1))
         px1 = (state[:, 9] - state[:, 0]) * torch.cos(rot) + (state[:, 10] - state[:, 1]) * torch.sin(rot)

@@ -1,5 +1,6 @@
 import re
 import argparse
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -18,13 +19,12 @@ def main():
     parser.add_argument('--plot_reward', default=True, action='store_true')
     parser.add_argument('--plot_train', default=True, action='store_true')
     parser.add_argument('--plot_val', default=False, action='store_true')
+    parser.add_argument('--plot_all', default=False, action='store_true')
     parser.add_argument('--window_size', type=int, default=200)
     args = parser.parse_args()
 
-    # define the names of the models you want to plot and the longest episodes you want to show
-    models = ['LSTM-RL', 'SARL', 'OM-SARL']
-    models = ['GCN']
-    max_episodes = 100000
+    models = []
+    max_episodes = None
 
     ax1 = ax2 = ax3 = ax4 = None
     ax1_legends = []
@@ -32,6 +32,15 @@ def main():
     ax3_legends = []
     ax4_legends = []
 
+    if args.plot_all:
+        log_dir = args.log_files[0]
+        if not os.path.isdir(log_dir):
+            parser.error('Input argument should be the directory containing all experiment folders')
+        args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in os.listdir(log_dir)]
+
+    args.log_files = sorted(args.log_files)
+    if not models:
+        models = [os.path.basename(log_file[:-11]) for log_file in args.log_files]
     for i, log_file in enumerate(args.log_files):
         with open(log_file, 'r') as file:
             log = file.read()
@@ -65,11 +74,12 @@ def main():
             train_cr.append(float(r[2]))
             train_time.append(float(r[3]))
             train_reward.append(float(r[4]))
-        train_episode = train_episode[:max_episodes]
-        train_sr = train_sr[:max_episodes]
-        train_cr = train_cr[:max_episodes]
-        train_time = train_time[:max_episodes]
-        train_reward = train_reward[:max_episodes]
+        if max_episodes is not None:
+            train_episode = train_episode[:max_episodes]
+            train_sr = train_sr[:max_episodes]
+            train_cr = train_cr[:max_episodes]
+            train_time = train_time[:max_episodes]
+            train_reward = train_reward[:max_episodes]
 
         # smooth training plot
         train_sr_smooth = running_mean(train_sr, args.window_size)
@@ -136,10 +146,28 @@ def main():
                 ax4.plot(val_episode, val_reward)
                 ax4_legends.append(models[i])
 
+        if args.plot_sr:
+            ax1.legend(ax1_legends)
+            ax1.set_title('Success rate')
+
+        if args.plot_time:
+            ax2.legend(ax2_legends)
+            ax2.set_title("robot's Time to Reach Goal")
+
+        if args.plot_cr:
+            ax3.legend(ax3_legends)
+            ax3.set_title('Collision Rate')
+
+        if args.plot_reward:
+            # ax4.legend(ax4_legends, loc='center left', bbox_to_anchor=(1, 0.5))
             ax4.legend(ax4_legends)
             ax4.set_xlabel('Episodes')
             ax4.set_ylabel('Reward')
-            ax4.set_title('Cumulative Discounted Reward')
+            plt.tick_params(axis='both', which='major')
+            plt.subplots_adjust(left=0.15, right=0.9, top=0.9, bottom=0.125)
+            # ax4.set_xlabel('xlabel', fontsize=18)
+            # ax4.set_ylabel('ylabel', fontsize=16)
+            # ax4.set_title('Cumulative Discounted Reward')
 
     plt.show()
 

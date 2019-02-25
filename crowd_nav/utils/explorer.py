@@ -27,7 +27,7 @@ class Explorer(object):
         success = 0
         collision = 0
         timeout = 0
-        too_close = 0
+        discomfort = 0
         min_dist = []
         cumulative_rewards = []
         collision_cases = []
@@ -45,8 +45,8 @@ class Explorer(object):
                 actions.append(action)
                 rewards.append(reward)
 
-                if isinstance(info, Danger):
-                    too_close += 1
+                if isinstance(info, Discomfort):
+                    discomfort += 1
                     min_dist.append(info.min_dist)
 
             if isinstance(info, ReachGoal):
@@ -81,9 +81,9 @@ class Explorer(object):
                      format(phase.upper(), extra_info, success_rate, collision_rate, avg_nav_time,
                             average(cumulative_rewards)))
         if phase in ['val', 'test']:
-            total_time = sum(success_times + collision_times + timeout_times) * self.robot.time_step
+            total_time = sum(success_times + collision_times + timeout_times)
             logging.info('Frequency of being in danger: %.2f and average min separate distance in danger: %.2f',
-                         too_close / total_time, average(min_dist))
+                         discomfort / total_time, average(min_dist))
 
         if print_failure:
             logging.info('Collision cases: ' + ' '.join([str(x) for x in collision_cases]))
@@ -112,16 +112,6 @@ class Explorer(object):
                     gamma_bar = pow(self.gamma, self.robot.time_step * self.robot.v_pref)
                     value = reward + gamma_bar * self.target_model(next_state.unsqueeze(0)).data.item()
             value = torch.Tensor([value]).to(self.device)
-
-            # # transform state of different human_num into fixed-size tensor
-            # if len(state.size()) == 1:
-            #     human_num = 1
-            #     feature_size = state.size()[0]
-            # else:
-            #     human_num, feature_size = state.size()
-            # if human_num != 5:
-            #     padding = torch.zeros((5 - human_num, feature_size))
-            #     state = torch.cat([state, padding])
             self.memory.push((state, value))
 
 

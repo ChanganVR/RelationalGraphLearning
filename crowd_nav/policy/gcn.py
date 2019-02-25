@@ -47,8 +47,13 @@ class ValueNetwork(nn.Module):
         # for visualization
         self.A = None
 
-    def forward(self, state):
-        size = state.shape
+    def forward(self, state_input):
+        if isinstance(state_input, tuple):
+            state, lengths = state_input
+        else:
+            state = state_input
+            # lengths = torch.IntTensor([state.size()[1]])
+
         self_state = state[:, 0, :self.self_state_dim]
         human_states = state[:, :, self.self_state_dim:]
 
@@ -90,8 +95,8 @@ class GCN(MultiHumanRL):
         self.name = 'GCN'
 
     def configure(self, config):
-        self.multiagent_training = config.getboolean('gcn', 'multiagent_training')
-        num_layer = config.getint('gcn', 'num_layer')
+        self.multiagent_training = config.gcn.multiagent_training
+        num_layer = config.gcn.num_layer
         self.set_common_parameters(config)
         self.model = ValueNetwork(self.input_dim(), self.self_state_dim, num_layer)
         logging.info('GCN layers: {}'.format(num_layer))

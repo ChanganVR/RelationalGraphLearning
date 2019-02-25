@@ -1,6 +1,6 @@
 import logging
 import argparse
-import configparser
+import importlib.util
 import os
 import torch
 import numpy as np
@@ -11,26 +11,9 @@ from crowd_sim.envs.utils.robot import Robot
 from crowd_sim.envs.policy.orca import ORCA
 
 
-def main():
-    parser = argparse.ArgumentParser('Parse configuration file')
-    parser.add_argument('--env_config', type=str, default='configs/env.config')
-    parser.add_argument('--policy_config', type=str, default='configs/policy.config')
-    parser.add_argument('--policy', type=str, default='orca')
-    parser.add_argument('--model_dir', type=str, default=None)
-    parser.add_argument('--il', default=False, action='store_true')
-    parser.add_argument('--gpu', default=False, action='store_true')
-    parser.add_argument('--visualize', default=False, action='store_true')
-    parser.add_argument('--phase', type=str, default='test')
-    parser.add_argument('--test_case', type=int, default=None)
-    parser.add_argument('--square', default=False, action='store_true')
-    parser.add_argument('--circle', default=False, action='store_true')
-    parser.add_argument('--video_file', type=str, default=None)
-    parser.add_argument('--traj', default=False, action='store_true')
-    args = parser.parse_args()
-
+def main(args):
     if args.model_dir is not None:
-        env_config_file = os.path.join(args.model_dir, os.path.basename(args.env_config))
-        policy_config_file = os.path.join(args.model_dir, os.path.basename(args.policy_config))
+        config_file = os.path.join(args.model_dir, args.config)
         if args.il:
             model_weights = os.path.join(args.model_dir, 'il_model.pth')
         else:
@@ -39,19 +22,21 @@ def main():
             else:
                 model_weights = os.path.join(args.model_dir, 'rl_model.pth')
     else:
-        env_config_file = args.env_config
-        policy_config_file = args.env_config
+        config_file = args.config
+    spec = importlib.util.spec_from_file_location('config', config_file)
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
 
     # configure logging and device
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s, %(levelname)s: %(message)s',
+    level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=level, format='%(asctime)s, %(levelname)s: %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
 
     # configure policy
     policy = policy_factory[args.policy]()
-    policy_config = configparser.RawConfigParser()
-    policy_config.read(policy_config_file)
+    policy_config = config.PolicyConfig(args.debug)
     policy.configure(policy_config)
     if policy.trainable:
         if args.model_dir is None:
@@ -59,14 +44,13 @@ def main():
         policy.get_model().load_state_dict(torch.load(model_weights))
 
     # configure environment
-    env_config = configparser.RawConfigParser()
-    env_config.read(env_config_file)
+    env_config = config.EnvConfig(args.debug)
     env = gym.make('CrowdSim-v0')
     env.configure(env_config)
     if args.square:
-        env.test_sim = 'square_crossing'
+        env.test_scenario = 'square_crossing'
     if args.circle:
-        env.test_sim = 'circle_crossing'
+        env.test_scenario = 'circle_crossing'
     robot = Robot(env_config, 'robot')
     robot.set_policy(policy)
     env.set_robot(robot)
@@ -108,4 +92,20 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser('Parse configuration file')
+    parser.add_argument('--config', type=str, default='config.py')
+    parser.add_argument('--policy', type=str, default='orca')
+    parser.add_argument('--model_dir', type=str, default=None)
+    parser.add_argument('--il', default=False, action='store_true')
+    parser.add_argument('--gpu', default=False, action='store_true')
+    parser.add_argument('--visualize', default=False, action='store_true')
+    parser.add_argument('--phase', type=str, default='test')
+    parser.add_argument('--test_case', type=int, default=None)
+    parser.add_argument('--square', default=False, action='store_true')
+    parser.add_argument('--circle', default=False, action='store_true')
+    parser.add_argument('--video_file', type=str, default=None)
+    parser.add_argument('--traj', default=False, action='store_true')
+    parser.add_argument('--debug', default=False, action='store_true')
+    sys_args = parser.parse_args()
+
+    main(sys_args)
