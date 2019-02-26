@@ -20,14 +20,16 @@ def test_sarl():
     args = get_default_args()
     args.policy = 'sarl'
     args.config = 'configs/tests_config.py'
+    args.debug = True
     args.overwrite = True
     main(args)
 
 
 def test_cadrl():
     args = get_default_args()
-    args.policy = 'cadlr'
+    args.policy = 'cadrl'
     args.config = 'configs/tests_config.py'
+    args.debug = True
     args.overwrite = True
     main(args)
 
@@ -36,6 +38,7 @@ def test_lstm_rl():
     args = get_default_args()
     args.policy = 'lstm_rl'
     args.config = 'configs/tests_config.py'
+    args.debug = True
     args.overwrite = True
     main(args)
 
@@ -44,5 +47,6 @@ def test_gcn():
     args = get_default_args()
     args.policy = 'gcn'
     args.config = 'configs/tests_config.py'
+    args.debug = True
     args.overwrite = True
     main(args)
