@@ -88,6 +88,10 @@ class PolicyConfig(object):
     sarl.with_om = False
     sarl.with_global_state = True
 
+    gcn = Config()
+    gcn.multiagent_training = True
+    gcn.num_layer = 1
+
     def __init__(self, debug=False):
         pass
 
