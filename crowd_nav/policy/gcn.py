@@ -8,7 +8,7 @@ from crowd_nav.policy.multi_human_rl import MultiHumanRL
 class ValueNetwork(nn.Module):
     def __init__(self, input_dim, self_state_dim, num_layer):
         super().__init__()
-        self.t_mlp = False
+        self.t_mlp = True
         self.planning_mlp = True
 
         human_state_dim = input_dim - self_state_dim
