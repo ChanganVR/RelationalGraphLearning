@@ -9,6 +9,7 @@ class EnvConfig(object):
     env.val_size = 100
     env.test_size = 500
     env.randomize_attributes = False
+    # not used API
     env.robot_sensor_range = 5
 
     reward = Config()
@@ -23,6 +24,7 @@ class EnvConfig(object):
     sim.square_width = 20
     sim.circle_radius = 5
     sim.human_num = 20
+    sim.nonstop_human = False
     sim.centralized_planning = True
 
     humans = Config()

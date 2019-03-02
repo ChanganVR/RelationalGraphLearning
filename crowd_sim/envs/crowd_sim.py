@@ -44,6 +44,7 @@ class CrowdSim(gym.Env):
         self.square_width = None
         self.circle_radius = None
         self.human_num = None
+        self.nonstop_human = None
         self.centralized_planning = None
         self.centralized_planner = None
         # for visualization
@@ -70,6 +71,7 @@ class CrowdSim(gym.Env):
         self.square_width = config.sim.square_width
         self.circle_radius = config.sim.circle_radius
         self.human_num = config.sim.human_num
+        self.nonstop_human = config.sim.nonstop_human
         self.centralized_planning = config.sim.centralized_planning
         self.case_counter = {'train': 0, 'test': 0, 'val': 0}
 
@@ -303,7 +305,7 @@ class CrowdSim(gym.Env):
             self.robot.step(action)
             for human, action in zip(self.humans, human_actions):
                 human.step(action)
-                if human.reached_destination():
+                if self.nonstop_human and human.reached_destination():
                     self.generate_human(human)
             self.global_time += self.time_step
 
@@ -517,7 +519,7 @@ class CrowdSim(gym.Env):
                 r, th = np.meshgrid(speeds, rotations)
                 z = np.array(self.action_values[global_step % len(self.states)][1:])
                 z = (z - np.min(z)) / (np.max(z) - np.min(z))
-                z = np.reshape(z, (16, 5))
+                z = np.reshape(z, (self.robot.policy.rotation_samples, self.robot.policy.speed_samples))
                 polar = plt.subplot(projection="polar")
                 polar.tick_params(labelsize=16)
                 mesh = plt.pcolormesh(th, r, z, vmin=0, vmax=1)

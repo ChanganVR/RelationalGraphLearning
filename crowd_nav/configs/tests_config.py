@@ -23,6 +23,7 @@ class EnvConfig(object):
     sim.square_width = 20
     sim.circle_radius = 5
     sim.human_num = 3
+    sim.nonstop_human = False
     sim.centralized_planning = True
 
     humans = Config()
