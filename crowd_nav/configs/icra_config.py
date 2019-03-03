@@ -127,7 +127,7 @@ class TrainConfig(object):
 
     def __init__(self, debug=False):
         if debug:
-            self.imitation_learning.il_episodes = 20
-            self.imitation_learning.il_epochs = 5
-            self.train.train_episodes = 1
+            self.imitation_learning.il_episodes = 200
+            self.imitation_learning.il_epochs = 10
+            self.train.train_episodes = 10
             self.train.checkpoint_interval = self.train.train_episodes

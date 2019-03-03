@@ -10,6 +10,7 @@ class ValueNetwork(nn.Module):
         super().__init__()
         self.t_mlp = True
         self.planning_mlp = True
+        self.expand_x = False
 
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
@@ -72,15 +73,24 @@ class ValueNetwork(nn.Module):
         normalized_A = torch.nn.functional.softmax(A, dim=2)
         self.A = normalized_A[0, :, :].data.cpu().numpy()
 
+        def mm_ax(A, X, expand_x=False):
+            if not expand_x:
+                return torch.matmul(A, X)
+            else:
+                left = torch.reshape(torch.cat(X * X.size[1], dim=2), (X.size[0], -1, X.size[2]))
+                right = torch.reshape(torch.cat(X * X.size[1], dim=1), (X.size[0], -1, X.size[2]))
+                X_prime = torch.cat([left, right], dim=2)
+                A_prime = ...
+
         # graph convolution
         if self.num_layer == 0:
             feat = X[:, 0, :]
         elif self.num_layer == 1:
-            h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1))
+            h1 = relu(torch.matmul(mm_ax(normalized_A, X, self.expand_x), self.w1))
             feat = h1[:, 0, :]
         else:
             # compute h1 and h2
-            h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1))
+            h1 = relu(torch.matmul(mm_ax(normalized_A, X, self.expand_x), self.w1))
             h2 = relu(torch.matmul(torch.matmul(normalized_A, h1), self.w2))
             feat = h2[:, 0, :]
 
