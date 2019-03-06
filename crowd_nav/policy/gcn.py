@@ -11,6 +11,7 @@ class ValueNetwork(nn.Module):
         self.t_mlp = True
         self.planning_mlp = True
         self.expand_x = False
+        self.diagonal_A = True
 
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
@@ -69,9 +70,13 @@ class ValueNetwork(nn.Module):
         # w_a = self.w_a.expand((size[0],) + self.w_a.shape)
         # A = torch.exp(torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1)))
         # normalized_A = A / torch.sum(A, dim=2, keepdim=True).expand_as(A)
-        A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
-        normalized_A = torch.nn.functional.softmax(A, dim=2)
-        self.A = normalized_A[0, :, :].data.cpu().numpy()
+        if self.diagonal_A:
+            normalized_A = torch.eye(X.size(1), X.size(1))
+            self.A = normalized_A
+        else:
+            A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
+            normalized_A = torch.nn.functional.softmax(A, dim=2)
+            self.A = normalized_A[0, :, :].data.cpu().numpy()
 
         def mm_ax(A, X, expand_x=False):
             if not expand_x:

@@ -365,13 +365,14 @@ class CrowdSim(gym.Env):
         import matplotlib.pyplot as plt
         plt.rcParams['animation.ffmpeg_path'] = '/usr/bin/ffmpeg'
 
-        x_offset = 0.11
-        y_offset = 0.11
+        x_offset = 0.2
+        y_offset = 0.4
         cmap = plt.cm.get_cmap('hsv', 10)
         robot_color = 'yellow'
         goal_color = 'red'
         arrow_color = 'red'
         arrow_style = patches.ArrowStyle("->", head_length=4, head_width=2)
+        display_numbers = True
 
         if mode == 'human':
             fig, ax = plt.subplots(figsize=(7, 7))
@@ -447,12 +448,14 @@ class CrowdSim(gym.Env):
                       for i in range(len(self.humans))]
 
             # disable showing human numbers
-            # human_numbers = [plt.text(humans[i].center[0] - x_offset, humans[i].center[1] - y_offset, str(i),
-            #                           color='black') for i in range(len(self.humans))]
+            if display_numbers:
+                human_numbers = [plt.text(humans[i].center[0] - x_offset, humans[i].center[1] + y_offset, str(i),
+                                          color='black') for i in range(len(self.humans))]
 
             for i, human in enumerate(humans):
                 ax.add_artist(human)
-                # ax.add_artist(human_numbers[i])
+                if display_numbers:
+                    ax.add_artist(human_numbers[i])
 
             # add time annotation
             time = plt.text(0.4, 0.9, 'Time: {}'.format(0), fontsize=16, transform = ax.transAxes)
@@ -493,7 +496,8 @@ class CrowdSim(gym.Env):
                 robot.center = robot_positions[frame_num]
                 for i, human in enumerate(humans):
                     human.center = human_positions[frame_num][i]
-                    # human_numbers[i].set_position((human.center[0] - x_offset, human.center[1] - y_offset))
+                    if display_numbers:
+                        human_numbers[i].set_position((human.center[0] - x_offset, human.center[1] + y_offset))
                     for arrow in arrows:
                         arrow.remove()
                     arrows = [patches.FancyArrowPatch(*orientation[frame_num], color=arrow_color,
