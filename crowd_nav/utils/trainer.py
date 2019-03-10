@@ -20,12 +20,18 @@ class Trainer(object):
 
     def set_learning_rate(self, learning_rate):
         logging.info('Current learning rate: %f', learning_rate)
-        # set separate learning rate for matrix t in gcn 
-        self.optimizer = optim.SGD([{'params': [param for name, param in self.model.named_parameters()
-                                                if 't' not in name]},
-                                    {'params': [param for name, param in self.model.named_parameters()
-                                                if 't' in name], 'lr': 1e-4}],
-                                    lr=learning_rate, momentum=0.9)
+        # set separate learning rate for matrix t in gcn
+        gradient_filter = lambda x: x.startswith('w_t')
+        smaller_gradient_params = {'params': [param for name, param in self.model.named_parameters()
+                                              if gradient_filter(name)], 'lr': learning_rate}
+        normal_gradient_params = {'params': [param for name, param in self.model.named_parameters()
+                                             if not gradient_filter(name)], 'lr': 1e-4}
+
+        self.optimizer = optim.SGD([smaller_gradient_params, normal_gradient_params],
+                                   lr=learning_rate, momentum=0.9)
+        logging.info('Parameters: ' + ' '.join([name for name, param in self.model.named_parameters()]))
+        logging.info('Smaller gradient: ' + ' '. join([name for name, param in self.model.named_parameters()
+                                                       if gradient_filter(name)]))
 
     def optimize_epoch(self, num_epochs):
         if self.optimizer is None:

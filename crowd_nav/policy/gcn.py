@@ -11,19 +11,19 @@ class ValueNetwork(nn.Module):
         self.t_mlp = True
         self.planning_mlp = True
         self.expand_x = False
-        self.diagonal_A = True
+        self.diagonal_A = False
 
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
         self.human_state_dim = human_state_dim
         self.num_layer = num_layer
         if self.t_mlp:
-            self.t = nn.Sequential(nn.Linear(self_state_dim, 50),
-                                   nn.ReLU(),
-                                   nn.Linear(50, human_state_dim))
+            self.w_t = nn.Sequential(nn.Linear(self_state_dim, 50),
+                                     nn.ReLU(),
+                                     nn.Linear(50, human_state_dim))
         else:
-            self.t = torch.randn(self_state_dim, human_state_dim)
-        self.w_a = torch.randn(human_state_dim, human_state_dim)
+            self.w_t = torch.nn.Parameter(torch.randn(self_state_dim, human_state_dim))
+        self.w_a = torch.nn.Parameter(torch.randn(human_state_dim, human_state_dim))
         if num_layer == 0:
             self.value_net = nn.Linear(human_state_dim, 1)
         elif num_layer == 1:
@@ -35,8 +35,9 @@ class ValueNetwork(nn.Module):
             else:
                 self.value_net = nn.Linear(64, 1)
         elif num_layer == 2:
-            self.w1 = torch.randn(human_state_dim, 64)
-            self.w2 = torch.randn(64, 64)
+            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 64))
+            self.w1.requires_grad = True
+            self.w2 = torch.nn.Parameter(torch.randn(64, 64))
             if self.planning_mlp:
                 self.value_net = nn.Sequential(nn.Linear(64, 64),
                                                nn.ReLU(),
@@ -61,9 +62,9 @@ class ValueNetwork(nn.Module):
 
         # compute feature matrix X
         if self.t_mlp:
-            new_self_state = relu(self.t(self_state).unsqueeze(1))
+            new_self_state = relu(self.w_t(self_state).unsqueeze(1))
         else:
-            new_self_state = torch.matmul(self_state, self.t).unsqueeze(1)
+            new_self_state = torch.matmul(self_state, self.w_t).unsqueeze(1)
         X = torch.cat([new_self_state, human_states], dim=1)
 
         # compute matrix A
