@@ -100,7 +100,7 @@ def main(args):
         il_policy = train_config.imitation_learning.il_policy
         il_epochs = train_config.imitation_learning.il_epochs
         il_learning_rate = train_config.imitation_learning.il_learning_rate
-        trainer.set_learning_rate(il_learning_rate)
+        trainer.set_learning_rate(il_learning_rate, policy.name)
         if robot.visible:
             safety_space = 0
         else:
@@ -120,7 +120,7 @@ def main(args):
     policy.set_env(env)
     robot.set_policy(policy)
     robot.print_info()
-    trainer.set_learning_rate(rl_learning_rate)
+    trainer.set_learning_rate(rl_learning_rate, policy.name)
     # fill the memory pool with some RL experience
     if args.resume:
         robot.policy.set_epsilon(epsilon_end)
