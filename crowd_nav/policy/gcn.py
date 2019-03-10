@@ -27,7 +27,7 @@ class ValueNetwork(nn.Module):
         if num_layer == 0:
             self.value_net = nn.Linear(human_state_dim, 1)
         elif num_layer == 1:
-            self.w1 = torch.randn(human_state_dim, 64)
+            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 64))
             if self.planning_mlp:
                 self.value_net = nn.Sequential(nn.Linear(64, 64),
                                                nn.ReLU(),
