@@ -41,7 +41,9 @@ class ValueNetwork(nn.Module):
             self.w1.requires_grad = True
             self.w2 = torch.nn.Parameter(torch.randn(64, 64))
             if self.planning_mlp:
-                self.value_net = nn.Sequential(nn.Linear(64, 64),
+                self.value_net = nn.Sequential(nn.Linear(64, 128),
+                                               nn.ReLU(),
+                                               nn.Linear(128, 64),
                                                nn.ReLU(),
                                                nn.Linear(64, 1))
             else:
