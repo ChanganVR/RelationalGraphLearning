@@ -69,6 +69,9 @@ def main(args):
     policy.set_env(env)
     robot.print_info()
     if args.visualize:
+        print(args.phase)
+        print(args.test_case)
+        
         ob = env.reset(args.phase, args.test_case)
         done = False
         last_pos = np.array(robot.get_position())
@@ -78,6 +81,7 @@ def main(args):
             current_pos = np.array(robot.get_position())
             logging.debug('Speed: %.2f', np.linalg.norm(current_pos - last_pos) / robot.time_step)
             last_pos = current_pos
+        args.traj = True
         if args.traj:
             env.render('traj', args.video_file)
         else:

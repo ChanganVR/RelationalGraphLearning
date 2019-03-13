@@ -12,6 +12,7 @@ class ValueNetwork(nn.Module):
         self.planning_mlp = True
         self.expand_x = False
         self.diagonal_A = False
+        logging.info('self.diagonal_A: {}'.format(self.diagonal_A))
 
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
@@ -74,6 +75,7 @@ class ValueNetwork(nn.Module):
         if self.diagonal_A:
             normalized_A = torch.eye(X.size(1), X.size(1))
             self.A = normalized_A
+           
         else:
             A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
             normalized_A = torch.nn.functional.softmax(A, dim=2)

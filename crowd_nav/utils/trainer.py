@@ -20,7 +20,7 @@ class Trainer(object):
 
     def set_learning_rate(self, learning_rate, policy_name):
         if policy_name == 'GCN':
-            scale = 0.1
+            scale = 1
 
             def param_filter(x):
                 # x.startswith('*')
@@ -29,8 +29,12 @@ class Trainer(object):
                                             if param_filter(name)], 'lr': learning_rate * scale}
             normal_lr_params = {'params': [param for name, param in self.model.named_parameters()
                                            if not param_filter(name)], 'lr': learning_rate}
-            self.optimizer = optim.SGD([smaller_lr_params, normal_lr_params], momentum=0.9)
-
+    
+            #self.optimizer = optim.SGD([smaller_lr_params, normal_lr_params], momentum=0.9)
+            #logging.info('using the sgd optimizer')
+            self.optimizer = optim.Adam([smaller_lr_params, normal_lr_params], lr = learning_rate, weight_decay= 0.000001)
+            logging.info('using the adam optimizer')
+            
             if smaller_lr_params['params']:
                 logging.info('Lr: {} for parameters {}'.format(learning_rate * scale, ' '.join(
                     [name for name, param in self.model.named_parameters() if param_filter(name)])))
@@ -38,7 +42,10 @@ class Trainer(object):
                 logging.info('Lr: {} for parameters {}'.format(learning_rate, ' '.join(
                     [name for name, param in self.model.named_parameters() if not param_filter(name)])))
         else:
-            self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
+            #self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
+            #logging.info('using the sgd optimizer')
+            self.optimizer = optim.Adam(self.model.parameters(), lr = learning_rate, weight_decay= 0.000001)
+            logging.info('using the adam optimizer')
             logging.info('Lr: {} for parameters {}'.format(learning_rate, ' '.join(
                 [name for name, param in self.model.named_parameters()])))
 

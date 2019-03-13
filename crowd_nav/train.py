@@ -96,6 +96,7 @@ def main(args):
         model.load_state_dict(torch.load(il_weight_file))
         logging.info('Load imitation learning trained weights.')
     else:
+
         il_episodes = train_config.imitation_learning.il_episodes
         il_policy = train_config.imitation_learning.il_policy
         il_epochs = train_config.imitation_learning.il_epochs
