@@ -27,27 +27,27 @@ class ValueNetwork(nn.Module):
         if num_layer == 0:
             self.value_net = nn.Linear(human_state_dim, 1)
         elif num_layer == 1:
-            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 64))
+            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 128))
             if self.planning_mlp:
-                self.value_net = nn.Sequential(nn.Linear(64, 128),
+                self.value_net = nn.Sequential(nn.Linear(128, 128),
                                                nn.ReLU(),
-                                               nn.Linear(128, 64),
+                                               nn.Linear(128, 128),
                                                nn.ReLU(),
-                                               nn.Linear(64, 1))
+                                               nn.Linear(128, 1))
             else:
-                self.value_net = nn.Linear(64, 1)
+                self.value_net = nn.Linear(128, 1)
         elif num_layer == 2:
-            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 64))
+            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 128))
             self.w1.requires_grad = True
-            self.w2 = torch.nn.Parameter(torch.randn(64, 64))
+            self.w2 = torch.nn.Parameter(torch.randn(128, 128))
             if self.planning_mlp:
-                self.value_net = nn.Sequential(nn.Linear(64, 128),
+                self.value_net = nn.Sequential(nn.Linear(128, 128),
                                                nn.ReLU(),
-                                               nn.Linear(128, 64),
+                                               nn.Linear(128, 128),
                                                nn.ReLU(),
-                                               nn.Linear(64, 1))
+                                               nn.Linear(128, 1))
             else:
-                self.value_net = nn.Linear(64, 1)
+                self.value_net = nn.Linear(128, 1)
         else:
             raise NotImplementedError
 
