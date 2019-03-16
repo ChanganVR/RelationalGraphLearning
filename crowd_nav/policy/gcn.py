@@ -2,52 +2,29 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import softmax, relu
 import logging
+from crowd_nav.policy.cadrl import mlp
 from crowd_nav.policy.multi_human_rl import MultiHumanRL
 
 
 class ValueNetwork(nn.Module):
     def __init__(self, input_dim, self_state_dim, num_layer):
         super().__init__()
-        self.t_mlp = True
-        self.planning_mlp = True
         self.expand_x = False
-        self.diagonal_A = False
 
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
         self.human_state_dim = human_state_dim
         self.num_layer = num_layer
-        if self.t_mlp:
-            self.w_t = nn.Sequential(nn.Linear(self_state_dim, 50),
-                                     nn.ReLU(),
-                                     nn.Linear(50, human_state_dim))
-        else:
-            self.w_t = torch.nn.Parameter(torch.randn(self_state_dim, human_state_dim))
+        self.w_t = mlp(self_state_dim, [50, 50, human_state_dim])
         self.w_a = torch.nn.Parameter(torch.randn(human_state_dim, human_state_dim))
-        if num_layer == 0:
-            self.value_net = nn.Linear(human_state_dim, 1)
-        elif num_layer == 1:
-            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 128))
-            if self.planning_mlp:
-                self.value_net = nn.Sequential(nn.Linear(128, 128),
-                                               nn.ReLU(),
-                                               nn.Linear(128, 128),
-                                               nn.ReLU(),
-                                               nn.Linear(128, 1))
-            else:
-                self.value_net = nn.Linear(128, 1)
+
+        final_state_size = 128
+        self.value_net = mlp(final_state_size, [150, 100, 100, 1])
+        if num_layer == 1:
+            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, final_state_size))
         elif num_layer == 2:
             self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 128))
-            self.w1.requires_grad = True
-            self.w2 = torch.nn.Parameter(torch.randn(128, 128))
-            if self.planning_mlp:
-                self.value_net = nn.Sequential(nn.Linear(128, 128),
-                                               nn.ReLU(),
-                                               nn.Linear(128, 128),
-                                               nn.ReLU(),
-                                               nn.Linear(128, 1))
-            else:
-                self.value_net = nn.Linear(128, 1)
+            self.w2 = torch.nn.Parameter(torch.randn(128, final_state_size))
         else:
             raise NotImplementedError
 
@@ -65,23 +42,16 @@ class ValueNetwork(nn.Module):
         human_states = state[:, :, self.self_state_dim:]
 
         # compute feature matrix X
-        if self.t_mlp:
-            new_self_state = relu(self.w_t(self_state).unsqueeze(1))
-        else:
-            new_self_state = torch.matmul(self_state, self.w_t).unsqueeze(1)
+        new_self_state = relu(self.w_t(self_state).unsqueeze(1))
         X = torch.cat([new_self_state, human_states], dim=1)
 
         # compute matrix A
         # w_a = self.w_a.expand((size[0],) + self.w_a.shape)
         # A = torch.exp(torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1)))
         # normalized_A = A / torch.sum(A, dim=2, keepdim=True).expand_as(A)
-        if self.diagonal_A:
-            normalized_A = torch.eye(X.size(1), X.size(1))
-            self.A = normalized_A
-        else:
-            A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
-            normalized_A = torch.nn.functional.softmax(A, dim=2)
-            self.A = normalized_A[0, :, :].data.cpu().numpy()
+        A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
+        normalized_A = torch.nn.functional.softmax(A, dim=2)
+        self.A = normalized_A[0, :, :].data.cpu().numpy()
 
         def mm_ax(A, X, expand_x=False):
             if not expand_x:
