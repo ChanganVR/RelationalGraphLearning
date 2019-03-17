@@ -8,15 +8,35 @@ from crowd_nav.policy.multi_human_rl import MultiHumanRL
 class ValueNetwork(nn.Module):
     def __init__(self, input_dim, self_state_dim, num_layer):
         super().__init__()
-        self.t_mlp = True
-        self.planning_mlp = True
-        self.expand_x = False
-        self.diagonal_A = False
-        logging.info('self.diagonal_A: {}'.format(self.diagonal_A))
-
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
         self.human_state_dim = human_state_dim
+        
+        self.t_mlp = True
+        self.planning_mlp = True
+        self.expand_x = False
+        
+        self.diagonal_A = False
+        logging.info('self.diagonal_A: {}'.format(self.diagonal_A))
+        self.equal_attention = False
+        logging.info('self.equal_attention:{}'.format(self.equal_attention))
+        
+        self.X_dim = human_state_dim
+        self.concate_X = False
+        if self.concate_X :
+            self.X_dim = input_dim
+        logging.info('self.concate_X :{}'.format(self.concate_X))
+        
+        self.joint_embed = True
+        if self.joint_embed :
+            self.r_mlp = nn.Sequential(nn.Linear(self.self_state_dim, 32),
+                                       nn.ReLU())
+            self.h_mlp = nn.Sequential(nn.Linear(self.human_state_dim, 32),
+                                       nn.ReLU())
+            self.X_dim = 32
+        logging.info('self.joint_embed:{}'.format(self.joint_embed))
+        
+        
         self.num_layer = num_layer
         if self.t_mlp:
             self.w_t = nn.Sequential(nn.Linear(self_state_dim, 50),
@@ -24,11 +44,13 @@ class ValueNetwork(nn.Module):
                                      nn.Linear(50, human_state_dim))
         else:
             self.w_t = torch.nn.Parameter(torch.randn(self_state_dim, human_state_dim))
-        self.w_a = torch.nn.Parameter(torch.randn(human_state_dim, human_state_dim))
+        
+        self.w_a = torch.nn.Parameter(torch.randn(self.X_dim, self.X_dim))
+        
         if num_layer == 0:
             self.value_net = nn.Linear(human_state_dim, 1)
         elif num_layer == 1:
-            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 64))
+            self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, 64))
             if self.planning_mlp:
                 self.value_net = nn.Sequential(nn.Linear(64, 64),
                                                nn.ReLU(),
@@ -36,7 +58,7 @@ class ValueNetwork(nn.Module):
             else:
                 self.value_net = nn.Linear(64, 1)
         elif num_layer == 2:
-            self.w1 = torch.nn.Parameter(torch.randn(human_state_dim, 64))
+            self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, 64))
             self.w1.requires_grad = True
             self.w2 = torch.nn.Parameter(torch.randn(64, 64))
             if self.planning_mlp:
@@ -57,17 +79,24 @@ class ValueNetwork(nn.Module):
         else:
             state = state_input
             # lengths = torch.IntTensor([state.size()[1]])
-
+       
         self_state = state[:, 0, :self.self_state_dim]
         human_states = state[:, :, self.self_state_dim:]
 
         # compute feature matrix X
-        if self.t_mlp:
-            new_self_state = relu(self.w_t(self_state).unsqueeze(1))
-        else:
-            new_self_state = torch.matmul(self_state, self.w_t).unsqueeze(1)
-        X = torch.cat([new_self_state, human_states], dim=1)
+        if self.concate_X:
+            X = state.clone().detach().requires_grad_(True)
+        elif self.joint_embed:
+            self_state_embedings = self.r_mlp(self_state)
+            human_state_embedings = self.h_mlp(human_states)
+            X = torch.cat([self_state_embedings.unsqueeze(1), human_state_embedings], dim = 1)
 
+        else:
+            if self.t_mlp:
+                new_self_state = relu(self.w_t(self_state).unsqueeze(1))
+            else:
+                new_self_state = torch.matmul(self_state, self.w_t).unsqueeze(1)
+            X = torch.cat([new_self_state, human_states], dim=1)
         # compute matrix A
         # w_a = self.w_a.expand((size[0],) + self.w_a.shape)
         # A = torch.exp(torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1)))
@@ -75,7 +104,10 @@ class ValueNetwork(nn.Module):
         if self.diagonal_A:
             normalized_A = torch.eye(X.size(1), X.size(1))
             self.A = normalized_A
-           
+        elif self.equal_attention:
+            normalized_A = torch.ones(X.size(1), X.size(1))/ X.size(1)
+            self.A = normalized_A
+            
         else:
             A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
             normalized_A = torch.nn.functional.softmax(A, dim=2)
@@ -98,6 +130,8 @@ class ValueNetwork(nn.Module):
             feat = h1[:, 0, :]
         else:
             # compute h1 and h2
+            #print(mm_ax(normalized_A, X, self.expand_x).shape)
+            #print(self.w1.shape)
             h1 = relu(torch.matmul(mm_ax(normalized_A, X, self.expand_x), self.w1))
             h2 = relu(torch.matmul(torch.matmul(normalized_A, h1), self.w2))
             feat = h2[:, 0, :]

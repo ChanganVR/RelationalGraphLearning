@@ -20,9 +20,10 @@ def main(args):
             if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model.pth')):
                 model_weights = os.path.join(args.model_dir, 'resumed_rl_model.pth')
             else:
-                model_weights = os.path.join(args.model_dir, 'rl_model.pth')
+                model_weights = os.path.join(args.model_dir, 'rl_model_10.pth')
     else:
         config_file = args.config
+    print(model_weights)
     spec = importlib.util.spec_from_file_location('config', config_file)
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
@@ -81,7 +82,7 @@ def main(args):
             current_pos = np.array(robot.get_position())
             logging.debug('Speed: %.2f', np.linalg.norm(current_pos - last_pos) / robot.time_step)
             last_pos = current_pos
-        args.traj = True
+        args.traj = False
         if args.traj:
             env.render('traj', args.video_file)
         else:

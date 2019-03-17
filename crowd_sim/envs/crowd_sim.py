@@ -166,7 +166,9 @@ class CrowdSim(gym.Env):
         if self.case_counter[phase] >= 0:
             np.random.seed(base_seed[phase] + self.case_counter[phase])
             
-            logging.info('in phase:{}, the random seed is :{}'.format(phase, base_seed[phase] + self.case_counter[phase] ))
+
+            #logging.info('in phase:{}, the random seed is :{}'.format(phase, base_seed[phase] + self.case_counter[phase] ))
+
             if not self.robot.policy.multiagent_training and phase in ['train', 'val']:
                 # only CADRL trains in circle crossing simulation
                 human_num = 1

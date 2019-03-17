@@ -13,3 +13,4 @@ venv*/
 data/
 *.mp4
 videos/
+*.log

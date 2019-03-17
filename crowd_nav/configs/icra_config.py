@@ -91,7 +91,7 @@ class PolicyConfig(object):
 
     gcn = Config()
     gcn.multiagent_training = True
-    gcn.num_layer = 2
+    gcn.num_layer = 1
 
     def __init__(self, debug=False):
         pass
