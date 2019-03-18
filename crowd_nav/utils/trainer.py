@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-
+#test
 class Trainer(object):
     def __init__(self, model, memory, device, batch_size):
         """
@@ -18,51 +18,11 @@ class Trainer(object):
         self.batch_size = batch_size
         self.optimizer = None
 
-    def set_learning_rate(self, learning_rate, policy_name, learning_phase):
-        if policy_name == 'GCN':
-            scale = 1
-
-            def param_filter(x):
-                # x.startswith('*')
-                return True
-            smaller_lr_params = {'params': [param for name, param in self.model.named_parameters()
-                                            if param_filter(name)], 'lr': learning_rate * scale}
-            normal_lr_params = {'params': [param for name, param in self.model.named_parameters()
-                                           if not param_filter(name)], 'lr': learning_rate}
-    
-            #self.optimizer = optim.SGD([smaller_lr_params, normal_lr_params], momentum=0.9)
-            #logging.info('using the sgd optimizer')
-            if learning_phase == 'il':
-                weight_decay_il = 0.000001
-                self.optimizer = optim.Adam([smaller_lr_params, normal_lr_params], lr = learning_rate, weight_decay= weight_decay_il)
-                logging.info('using the adam optimizer for learning phase:{}, and the weight_decay is:{}'.\
-                             format(learning_phase, weight_decay_il))
-                
-            elif learning_phase == 'rl':
-                weight_decay_rl = 0.000001
-                self.optimizer = optim.Adam([smaller_lr_params, normal_lr_params], lr = learning_rate, weight_decay= weight_decay_rl)
-                logging.info('using the adam optmizer for learning phase:{}, and the weight_decay is:{}'.\
-                              format(learning_phase, weight_decay_rl))
-            
-            if smaller_lr_params['params']:
-                logging.info('Lr: {} for parameters {}'.format(learning_rate * scale, ' '.join(
-                    [name for name, param in self.model.named_parameters() if param_filter(name)])))
-            if normal_lr_params['params']:
-                logging.info('Lr: {} for parameters {}'.format(learning_rate, ' '.join(
-                    [name for name, param in self.model.named_parameters() if not param_filter(name)])))
-        else:
-            #self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
-            #logging.info('using the sgd optimizer')
-            if learning_phase == 'il':
-                weight_decay_il = 0
-                self.optimizer = optim.Adam(self.model.parameters(), lr = learning_rate, weight_decay= weight_decay_il)
-                logging.info('using the adam optimizer')
-            elif learning_phase == 'rl':
-                weight_decay_rl = 0
-                self.optimizer = optim.Adam(self.model.parameters(), lr = learning_rate, weight_decay= weight_decay_rl)
-                       
-            logging.info('Lr: {} for parameters {}'.format(learning_rate, ' '.join(
-                [name for name, param in self.model.named_parameters()])))
+    def set_learning_rate(self, learning_rate):
+        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        # self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
+        logging.info('Lr: {} for parameters {} with Adam optimizer'.format(learning_rate, ' '.join(
+            [name for name, param in self.model.named_parameters()])))
 
     def optimize_epoch(self, num_epochs, writer):
         if self.optimizer is None:
@@ -82,7 +42,7 @@ class Trainer(object):
                 epoch_loss += loss.data.item()
               
             average_epoch_loss = epoch_loss / len(self.memory)
-            writer.add_scalar('il_data/average_epoch_loss', average_epoch_loss, epoch)   
+            writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
             logging.debug('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
 
         return average_epoch_loss

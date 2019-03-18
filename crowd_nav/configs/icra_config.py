@@ -131,3 +131,4 @@ class TrainConfig(object):
             self.imitation_learning.il_epochs = 10
             self.train.train_episodes = 2
             self.train.checkpoint_interval = self.train.train_episodes
+            self.train.evaluation_interval = self.train.train_episodes

@@ -6,14 +6,15 @@ import shutil
 import importlib.util
 import torch
 import gym
+import copy
 import git
+from tensorboardX import SummaryWriter
 from crowd_sim.envs.utils.robot import Robot
 from crowd_nav.utils.trainer import Trainer
 from crowd_nav.utils.memory import ReplayMemory
 from crowd_nav.utils.explorer import Explorer
 from crowd_nav.policy.policy_factory import policy_factory
-from tensorboardX import SummaryWriter
-import time
+
 
 #test
 def main(args):
@@ -34,13 +35,8 @@ def main(args):
         shutil.copy(args.config, args.output_dir)
     
     log_file = os.path.join(args.output_dir, 'output.log')
-    
-    #writer_p = os.path.join(args.output_dir + time.strftime("%m-%d-%H-%M-%S", time.localtime()))
-    #writer = SummaryWriter(log_dir = writer_p)
-    writer = SummaryWriter(log_dir = args.output_dir)
     il_weight_file = os.path.join(args.output_dir, 'il_model.pth')
     rl_weight_file = os.path.join(args.output_dir, 'rl_model.pth')
-    
     spec = importlib.util.spec_from_file_location('config', args.config)
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
@@ -56,6 +52,7 @@ def main(args):
     logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
+    writer = SummaryWriter(log_dir='data/runs')
 
     # configure policy
     policy = policy_factory[args.policy]()
@@ -104,13 +101,11 @@ def main(args):
         model.load_state_dict(torch.load(il_weight_file))
         logging.info('Load imitation learning trained weights.')
     else:
-        args.learning_phase = 'il'
         il_episodes = train_config.imitation_learning.il_episodes
         il_policy = train_config.imitation_learning.il_policy
         il_epochs = train_config.imitation_learning.il_epochs
         il_learning_rate = train_config.imitation_learning.il_learning_rate
-        
-        trainer.set_learning_rate(il_learning_rate, policy.name, args.learning_phase)
+        trainer.set_learning_rate(il_learning_rate)
         if robot.visible:
             safety_space = 0
         else:
@@ -130,34 +125,24 @@ def main(args):
     policy.set_env(env)
     robot.set_policy(policy)
     robot.print_info()
-    args.learning_phase = 'rl'
-    trainer.set_learning_rate(rl_learning_rate, policy.name, args.learning_phase)
+    trainer.set_learning_rate(rl_learning_rate)
     # fill the memory pool with some RL experience
     if args.resume:
         robot.policy.set_epsilon(epsilon_end)
         explorer.run_k_episodes(100, 'train', update_memory=True, episode=0)
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
     episode = 0
-    args.slidewindow = 200
-    
-    success_rates_train = []
-    collision_rates_train = []
-    ave_nav_times_train = []
-    rewards_train = []
     best_val_reward = -1
-    val_iter = 0
-
+    best_val_model = None
     # evaluate the model after imitation learning
     if episode % evaluation_interval == 0:
-        logging.info('evaluate the model instantly after imitation learning on the validaton cases')           
-        success_rate_val, collision_rate_val, avg_nav_time_val, reward_val = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
-        writer.add_scalar('val_data/success_rate', success_rate_val, val_iter)
-        writer.add_scalar('val_data/collision_rate', collision_rate_val, val_iter)
-        writer.add_scalar('val_data/nav_time', avg_nav_time_val, val_iter)
-        writer.add_scalar('val_data/rewards', reward_val, val_iter)
-       
+        logging.info('Evaluate the model instantly after imitation learning on the validation cases')
+        sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
+        writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
+        writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
+        writer.add_scalar('val/time', time, episode // evaluation_interval)
+        writer.add_scalar('val/reward', reward, episode // evaluation_interval)
 
-    
     while episode < train_episodes:
         if args.resume:
             epsilon = epsilon_end
@@ -169,15 +154,11 @@ def main(args):
         robot.policy.set_epsilon(epsilon)
 
         # sample k episodes into memory and optimize over the generated memory
-        success_rate_train, collision_rate_train, ave_nav_time_train, reward_train = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True, episode=episode)        
-        success_rates_train.append(success_rate_train)
-        collision_rates_train.append(collision_rate_train)
-        ave_nav_times_train.append(ave_nav_time_train)
-        rewards_train.append(reward_train)
-        writer.add_scalar('train_data/success_rate', sum(success_rates_train[-args.slidewindow:])/len(success_rates_train[-args.slidewindow:]), episode)
-        writer.add_scalar('train_data/collision_rate', sum(collision_rates_train[-args.slidewindow:])/len(collision_rates_train[-args.slidewindow:]), episode)
-        writer.add_scalar('train_data/nav_time', sum(ave_nav_times_train[-args.slidewindow:])/len(collision_rates_train[-args.slidewindow:]), episode)
-        writer.add_scalar('train_data/rewards', sum(rewards_train[-args.slidewindow:])/len(rewards_train[-args.slidewindow:]), episode)
+        sr, cr, time, reward = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True, episode=episode)
+        writer.add_scalar('train/success_rate', sr, episode)
+        writer.add_scalar('train/collision_rate', cr, episode)
+        writer.add_scalar('train/time', time, episode)
+        writer.add_scalar('train/reward', reward, episode)
         
         trainer.optimize_batch(train_batches)
         episode += 1
@@ -186,29 +167,31 @@ def main(args):
             explorer.update_target_model(model)
         # evaluate the model
         if episode % evaluation_interval == 0:
-            success_rate_val, collision_rate_val, avg_nav_time_val, reward_val = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
-            writer.add_scalar('val_data/success_rate', success_rate_val, val_iter)
-            writer.add_scalar('val_data/collision_rate', collision_rate_val, val_iter)
-            writer.add_scalar('val_data/nav_time', avg_nav_time_val, val_iter)
-            writer.add_scalar('val_data/rewards', reward_val, val_iter)
-            val_iter += 1
-            
-        if episode != 0 and episode % checkpoint_interval == 0:
-            if reward_val > best_val_reward:
-                best_val_reward = reward_val
-                logging.info('save the best model in episode:{}'.format(episode))
-                torch.save(model.state_dict(), rl_weight_file.split('.')[0] + 'best_val.pth' )
-            
-            torch.save(model.state_dict(), rl_weight_file.split('.')[0] + '_'  + str(int(episode /checkpoint_interval)) + '.pth' )
+            sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
+            writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
+            writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
+            writer.add_scalar('val/time', time, episode // evaluation_interval)
+            writer.add_scalar('val/reward', reward, episode // evaluation_interval)
 
-    # final test
+            if episode % checkpoint_interval == 0 and reward > best_val_reward:
+                best_val_reward = reward
+                best_val_model = copy.deepcopy(model.state_dict())
+
+        if episode != 0 and episode % checkpoint_interval == 0:
+            torch.save(model.state_dict(), rl_weight_file)
+
+    # test with the best val model
+    if best_val_model is not None:
+        model.load_state_dict(best_val_model)
+        torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
+        logging.info('Save the best val model')
     explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='cadrl')
-    parser.add_argument('--config', type=str, default='config.py')
+    parser.add_argument('--config', type=str, default='configs/icra_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)

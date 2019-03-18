@@ -158,17 +158,11 @@ class CrowdSim(gym.Env):
         if test_case is not None:
             self.case_counter[phase] = test_case
         self.global_time = 0
-        #self.case_capacity = {'train': np.iinfo(np.uint32).max - 2000, 'val': 1000, 'test': 1000}
         base_seed = {'train': self.case_capacity['val'] + self.case_capacity['test'],
                      'val': 0, 'test': self.case_capacity['val']}
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)
-
         if self.case_counter[phase] >= 0:
             np.random.seed(base_seed[phase] + self.case_counter[phase])
-            
-
-            #logging.info('in phase:{}, the random seed is :{}'.format(phase, base_seed[phase] + self.case_counter[phase] ))
-
             if not self.robot.policy.multiagent_training and phase in ['train', 'val']:
                 # only CADRL trains in circle crossing simulation
                 human_num = 1
@@ -179,7 +173,6 @@ class CrowdSim(gym.Env):
             self.humans = []
             for _ in range(human_num):
                 self.humans.append(self.generate_human())
-
             # case_counter is always between 0 and case_size[phase]
             self.case_counter[phase] = (self.case_counter[phase] + 1) % self.case_size[phase]
         else:
