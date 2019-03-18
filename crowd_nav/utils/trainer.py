@@ -20,6 +20,7 @@ class Trainer(object):
 
     def set_learning_rate(self, learning_rate):
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        # self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
         logging.info('Lr: {} for parameters {} with Adam optimizer'.format(learning_rate, ' '.join(
             [name for name, param in self.model.named_parameters()])))
 

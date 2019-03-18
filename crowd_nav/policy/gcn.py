@@ -11,7 +11,7 @@ class ValueNetwork(nn.Module):
         super().__init__()
         # architecture design parameters
         self.expand_x = False
-        self.joint_embed = False
+        self.joint_embed = True
         self.diagonal_A = False
         self.equal_attention = False
         logging.info('self.joint_embed:{}'.format(self.joint_embed))
@@ -24,7 +24,7 @@ class ValueNetwork(nn.Module):
         if self.joint_embed:
             self.X_dim = 32
             self.w_r = mlp(self_state_dim, [64, self.X_dim], last_relu=True)
-            self.w_h = mlp(human_state_dim, [64, self.X_dim])
+            self.w_h = mlp(human_state_dim, [64, self.X_dim], last_relu=True)
         else:
             self.X_dim = human_state_dim
             self.w_t = mlp(self_state_dim, [50, 50, self.X_dim], last_relu=True)
