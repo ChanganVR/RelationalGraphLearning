@@ -181,7 +181,7 @@ def main(args):
 
     # test with the best val model
     if best_val_model is not None:
-        torch.load(model, best_val_model)
+        model.load_state_dict(best_val_model)
         torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
         logging.info('Save the best val model')
     explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode)
