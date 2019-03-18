@@ -6,7 +6,9 @@ import shutil
 import importlib.util
 import torch
 import gym
+import copy
 import git
+from tensorboardX import SummaryWriter
 from crowd_sim.envs.utils.robot import Robot
 from crowd_nav.utils.trainer import Trainer
 from crowd_nav.utils.memory import ReplayMemory
@@ -30,6 +32,7 @@ def main(args):
     if make_new_dir:
         os.makedirs(args.output_dir)
         shutil.copy(args.config, args.output_dir)
+    
     log_file = os.path.join(args.output_dir, 'output.log')
     il_weight_file = os.path.join(args.output_dir, 'il_model.pth')
     rl_weight_file = os.path.join(args.output_dir, 'rl_model.pth')
@@ -48,6 +51,7 @@ def main(args):
     logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
+    writer = SummaryWriter(log_dir='data/runs')
 
     # configure policy
     policy = policy_factory[args.policy]()
@@ -100,7 +104,7 @@ def main(args):
         il_policy = train_config.imitation_learning.il_policy
         il_epochs = train_config.imitation_learning.il_epochs
         il_learning_rate = train_config.imitation_learning.il_learning_rate
-        trainer.set_learning_rate(il_learning_rate, policy.name)
+        trainer.set_learning_rate(il_learning_rate)
         if robot.visible:
             safety_space = 0
         else:
@@ -110,7 +114,7 @@ def main(args):
         il_policy.safety_space = safety_space
         robot.set_policy(il_policy)
         explorer.run_k_episodes(il_episodes, 'train', update_memory=True, imitation_learning=True)
-        trainer.optimize_epoch(il_epochs)
+        trainer.optimize_epoch(il_epochs, writer)
         torch.save(model.state_dict(), il_weight_file)
         logging.info('Finish imitation learning. Weights saved.')
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
@@ -120,13 +124,24 @@ def main(args):
     policy.set_env(env)
     robot.set_policy(policy)
     robot.print_info()
-    trainer.set_learning_rate(rl_learning_rate, policy.name)
+    trainer.set_learning_rate(rl_learning_rate)
     # fill the memory pool with some RL experience
     if args.resume:
         robot.policy.set_epsilon(epsilon_end)
         explorer.run_k_episodes(100, 'train', update_memory=True, episode=0)
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
     episode = 0
+    best_val_reward = -1
+    best_val_model = None
+    # evaluate the model after imitation learning
+    if episode % evaluation_interval == 0:
+        logging.info('Evaluate the model instantly after imitation learning on the validation cases')
+        sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
+        writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
+        writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
+        writer.add_scalar('val/time', time, episode // evaluation_interval)
+        writer.add_scalar('val/reward', reward, episode // evaluation_interval)
+
     while episode < train_episodes:
         if args.resume:
             epsilon = epsilon_end
@@ -137,29 +152,45 @@ def main(args):
                 epsilon = epsilon_end
         robot.policy.set_epsilon(epsilon)
 
-        # evaluate the model
-        if episode % evaluation_interval == 0:
-            explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
-
         # sample k episodes into memory and optimize over the generated memory
-        explorer.run_k_episodes(sample_episodes, 'train', update_memory=True, episode=episode)
+        sr, cr, time, reward = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True, episode=episode)
+        writer.add_scalar('train/success_rate', sr, episode)
+        writer.add_scalar('train/collision_rate', cr, episode)
+        writer.add_scalar('train/time', time, episode)
+        writer.add_scalar('train/reward', reward, episode)
+        
         trainer.optimize_batch(train_batches)
         episode += 1
 
         if episode % target_update_interval == 0:
             explorer.update_target_model(model)
+        # evaluate the model
+        if episode % evaluation_interval == 0:
+            sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
+            writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
+            writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
+            writer.add_scalar('val/time', time, episode // evaluation_interval)
+            writer.add_scalar('val/reward', reward, episode // evaluation_interval)
+
+            if episode % checkpoint_interval == 0 and reward > best_val_reward:
+                best_val_reward = reward
+                best_val_model = copy.deepcopy(model.state_dict())
 
         if episode != 0 and episode % checkpoint_interval == 0:
             torch.save(model.state_dict(), rl_weight_file)
 
-    # final test
+    # test with the best val model
+    if best_val_model is not None:
+        torch.load(model, best_val_model)
+        torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
+        logging.info('Save the best val model')
     explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='cadrl')
-    parser.add_argument('--config', type=str, default='config.py')
+    parser.add_argument('--config', type=str, default='configs/icra_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)

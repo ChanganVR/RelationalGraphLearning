@@ -16,11 +16,13 @@ def main(args):
         config_file = os.path.join(args.model_dir, args.config)
         if args.il:
             model_weights = os.path.join(args.model_dir, 'il_model.pth')
-        else:
+        elif args.rl:
             if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model.pth')):
                 model_weights = os.path.join(args.model_dir, 'resumed_rl_model.pth')
             else:
                 model_weights = os.path.join(args.model_dir, 'rl_model.pth')
+        else:
+            model_weights = os.path.join(args.model_dir, 'best_val.pth')
     else:
         config_file = args.config
     spec = importlib.util.spec_from_file_location('config', config_file)
@@ -93,10 +95,11 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
-    parser.add_argument('--config', type=str, default='config.py')
+    parser.add_argument('--config', type=str, default='icra_config.py')
     parser.add_argument('--policy', type=str, default='orca')
     parser.add_argument('--model_dir', type=str, default=None)
     parser.add_argument('--il', default=False, action='store_true')
+    parser.add_argument('--rl', default=False, action='store_true')
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--visualize', default=False, action='store_true')
     parser.add_argument('--phase', type=str, default='test')

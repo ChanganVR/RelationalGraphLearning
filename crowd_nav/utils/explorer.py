@@ -88,11 +88,13 @@ class Explorer(object):
         if print_failure:
             logging.info('Collision cases: ' + ' '.join([str(x) for x in collision_cases]))
             logging.info('Timeout cases: ' + ' '.join([str(x) for x in timeout_cases]))
-
+        
+        return success_rate, collision_rate, avg_nav_time, average(cumulative_rewards)
+    
     def update_memory(self, states, actions, rewards, imitation_learning=False):
         if self.memory is None or self.gamma is None:
             raise ValueError('Memory or gamma value is not set!')
-
+        
         for i, state in enumerate(states):
             reward = rewards[i]
 
@@ -101,8 +103,19 @@ class Explorer(object):
                 # define the value of states in IL as cumulative discounted rewards, which is the same in RL
                 state = self.target_policy.transform(state)
                 # value = pow(self.gamma, (len(states) - 1 - i) * self.robot.time_step * self.robot.v_pref)
+                '''
+                print([pow(self.gamma, (t - i) * self.robot.time_step * self.robot.v_pref) * reward *(1 if t >= i else 0)
+                             for t, reward in enumerate(rewards)])
+                
+                print([(t, reward) for t, reward in enumerate(rewards)])
+                '''
+                #exit(0)
+                value = sum([pow(self.gamma, (t - i) * self.robot.time_step * self.robot.v_pref) * reward *(1 if t >= i else 0)
+                             for t, reward in enumerate(rewards)])
+                '''
                 value = sum([pow(self.gamma, max(t - i, 0) * self.robot.time_step * self.robot.v_pref) * reward
                              for t, reward in enumerate(rewards)])
+                '''
             else:
                 if i == len(states) - 1:
                     # terminal state

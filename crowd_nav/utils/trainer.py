@@ -18,35 +18,12 @@ class Trainer(object):
         self.batch_size = batch_size
         self.optimizer = None
 
-    def set_learning_rate(self, learning_rate, policy_name):
-        # if policy_name == 'GCN':
-        #     scale = 1
-        #
-        #     def param_filter(x):
-        #         # x.startswith('*')
-        #         return True
-        #     smaller_lr_params = {'params': [param for name, param in self.model.named_parameters()
-        #                                     if param_filter(name)], 'lr': learning_rate * scale}
-        #     normal_lr_params = {'params': [param for name, param in self.model.named_parameters()
-        #                                    if not param_filter(name)], 'lr': learning_rate}
-        #     self.optimizer = optim.Adam([smaller_lr_params, normal_lr_params], lr=learning_rate)
-        #
-        #     if smaller_lr_params['params']:
-        #         logging.info('Lr: {} for parameters {}'.format(learning_rate * scale, ' '.join(
-        #             [name for name, param in self.model.named_parameters() if param_filter(name)])))
-        #     if normal_lr_params['params']:
-        #         logging.info('Lr: {} for parameters {}'.format(learning_rate, ' '.join(
-        #             [name for name, param in self.model.named_parameters() if not param_filter(name)])))
-        # else:
-        #     self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
-        #     logging.info('Lr: {} for parameters {}'.format(learning_rate, ' '.join(
-        #         [name for name, param in self.model.named_parameters()])))
-
+    def set_learning_rate(self, learning_rate):
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        logging.info('Lr: {} for parameters {}'.format(learning_rate, ' '.join(
+        logging.info('Lr: {} for parameters {} with Adam optimizer'.format(learning_rate, ' '.join(
             [name for name, param in self.model.named_parameters()])))
 
-    def optimize_epoch(self, num_epochs):
+    def optimize_epoch(self, num_epochs, writer):
         if self.optimizer is None:
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
@@ -62,8 +39,9 @@ class Trainer(object):
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.data.item()
-
+              
             average_epoch_loss = epoch_loss / len(self.memory)
+            writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
             logging.debug('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
 
         return average_epoch_loss
