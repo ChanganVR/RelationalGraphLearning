@@ -15,6 +15,7 @@ from crowd_nav.policy.policy_factory import policy_factory
 from tensorboardX import SummaryWriter
 import time
 
+#test
 def main(args):
     # configure paths
     make_new_dir = True
