@@ -183,7 +183,7 @@ def main(args):
     if best_val_model is not None:
         model.load_state_dict(best_val_model)
         torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
-        logging.info('Save the best val model')
+        logging.info('Save the best val model with the reward: {}'.format(best_val_reward))
     explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode)
 
 
