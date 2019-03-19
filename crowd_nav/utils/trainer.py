@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-
+#test
 class Trainer(object):
     def __init__(self, model, memory, device, batch_size):
         """
