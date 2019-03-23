@@ -23,8 +23,9 @@ class ValueNetwork(nn.Module):
 
         if self.joint_embed:
             self.X_dim = 32
-            self.w_r = mlp(self_state_dim, [64, self.X_dim])
-            self.w_h = mlp(human_state_dim, [64, self.X_dim])
+            self.w_r = mlp(self_state_dim, [64], last_relu=True)
+            self.w_h = mlp(human_state_dim, [64], last_relu=True)
+            self.w_e = mlp(64, [self.X_dim])
         else:
             self.X_dim = human_state_dim
             self.w_t = mlp(self_state_dim, [50, 50, self.X_dim], last_relu=True)
@@ -57,8 +58,8 @@ class ValueNetwork(nn.Module):
 
         # compute feature matrix X
         if self.joint_embed:
-            self_state_embedings = self.w_r(self_state)
-            human_state_embedings = self.w_h(human_states)
+            self_state_embedings = self.w_e(self.w_r(self_state))
+            human_state_embedings = self.w_e(self.w_h(human_states))
             X = torch.cat([self_state_embedings.unsqueeze(1), human_state_embedings], dim=1)
         else:
             new_self_state = relu(self.w_t(self_state).unsqueeze(1))

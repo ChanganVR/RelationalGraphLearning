@@ -51,7 +51,7 @@ def main(args):
     logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
-    writer = SummaryWriter(log_dir='data/runs')
+    writer = SummaryWriter(log_dir=args.output_dir)
 
     # configure policy
     policy = policy_factory[args.policy]()
