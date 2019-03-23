@@ -89,12 +89,12 @@ class ValueNetwork(nn.Module):
         if self.num_layer == 0:
             feat = X[:, 0, :]
         elif self.num_layer == 1:
-            h1 = relu(torch.matmul(mm_ax(normalized_A, X, self.expand_x), self.w1))
+            h1 = relu(torch.matmul(mm_ax(normalized_A, relu(X), self.expand_x), self.w1))
             feat = h1[:, 0, :]
         else:
             # compute h1 and h2
-            h1 = torch.matmul(mm_ax(normalized_A, relu(X), self.expand_x), self.w1)
-            h2 = torch.matmul(torch.matmul(normalized_A, relu(h1)), self.w2)
+            h1 = relu(torch.matmul(mm_ax(normalized_A, relu(X), self.expand_x), self.w1))
+            h2 = relu(torch.matmul(torch.matmul(normalized_A, h1), self.w2))
             feat = h2[:, 0, :]
 
         # do planning using only the final layer feature of the agent
