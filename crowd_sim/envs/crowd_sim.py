@@ -513,9 +513,10 @@ class CrowdSim(gym.Env):
                 if self.robot.kinematics != 'holonomic':
                     print('Kinematics is not holonomic')
                     return
-                for agent in [self.states[global_step][0]] + self.states[global_step][1]:
-                    print(('{:.4f}, ' * 6 + '{:.4f}').format(agent.px, agent.py, agent.gx, agent.gy,
-                                                             agent.vx, agent.vy, agent.theta))
+                # for agent in [self.states[global_step][0]] + self.states[global_step][1]:
+                #     print(('{:.4f}, ' * 6 + '{:.4f}').format(agent.px, agent.py, agent.gx, agent.gy,
+                #                                              agent.vx, agent.vy, agent.theta))
+
                 # when any key is pressed draw the action value plot
                 fig, axis = plt.subplots()
                 speeds = [0] + self.robot.policy.speeds
@@ -539,15 +540,15 @@ class CrowdSim(gym.Env):
                     print(self.As[global_step])
 
             def on_click(event):
-                anim.running ^= True
                 if anim.running:
                     anim.event_source.stop()
                     if hasattr(self.robot.policy, 'get_matrix_A'):
                         print_matrix_A()
-                    if hasattr(self.robot.policy, 'action_values'):
-                        plot_value_heatmap()
+                    # if hasattr(self.robot.policy, 'action_values'):
+                    #     plot_value_heatmap()
                 else:
                     anim.event_source.start()
+                anim.running ^= True
 
             fig.canvas.mpl_connect('key_press_event', on_click)
             anim = animation.FuncAnimation(fig, update, frames=len(self.states), interval=self.time_step * 500)

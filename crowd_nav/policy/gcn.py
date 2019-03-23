@@ -23,15 +23,15 @@ class ValueNetwork(nn.Module):
 
         if self.joint_embed:
             self.X_dim = 32
-            self.w_r = mlp(self_state_dim, [64, self.X_dim], last_relu=True)
-            self.w_h = mlp(human_state_dim, [64, self.X_dim], last_relu=True)
+            self.w_r = mlp(self_state_dim, [64, self.X_dim])
+            self.w_h = mlp(human_state_dim, [64, self.X_dim])
         else:
             self.X_dim = human_state_dim
             self.w_t = mlp(self_state_dim, [50, 50, self.X_dim], last_relu=True)
 
         self.w_a = torch.nn.Parameter(torch.randn(self.X_dim, self.X_dim))
 
-        final_state_size = 128
+        final_state_size = 64
         if num_layer == 1:
             self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, final_state_size))
         elif num_layer == 2:
@@ -93,8 +93,8 @@ class ValueNetwork(nn.Module):
             feat = h1[:, 0, :]
         else:
             # compute h1 and h2
-            h1 = relu(torch.matmul(mm_ax(normalized_A, X, self.expand_x), self.w1))
-            h2 = relu(torch.matmul(torch.matmul(normalized_A, h1), self.w2))
+            h1 = torch.matmul(mm_ax(normalized_A, relu(X), self.expand_x), self.w1)
+            h2 = torch.matmul(torch.matmul(normalized_A, relu(h1)), self.w2)
             feat = h2[:, 0, :]
 
         # do planning using only the final layer feature of the agent
