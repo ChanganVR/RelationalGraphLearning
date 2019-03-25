@@ -97,12 +97,12 @@ class GCN(MultiHumanRL):
     def configure(self, config):
         self.multiagent_training = config.gcn.multiagent_training
         num_layer = config.gcn.num_layer
-        X_dim = config.gcn.X_dim = 32
-        wr_dims = config.gcn.wr_dims = [64, X_dim]
-        wh_dims = config.gcn.wh_dims = [64, X_dim]
-        final_state_dim = config.gcn.final_state_dim = 64
-        gcn2_w1_dim = config.gcn.gcn2_w1_dim = 64
-        planning_dims = config.gcn.planning_dims = [150, 100, 100, 1]
+        X_dim = config.gcn.X_dim
+        wr_dims = config.gcn.wr_dims
+        wh_dims = config.gcn.wh_dims
+        final_state_dim = config.gcn.final_state_dim
+        gcn2_w1_dim = config.gcn.gcn2_w1_dim
+        planning_dims = config.gcn.planning_dims
         self.set_common_parameters(config)
         self.model = ValueNetwork(self.input_dim(), self.self_state_dim, num_layer, X_dim, wr_dims, wh_dims,
                                   final_state_dim, gcn2_w1_dim, planning_dims)
