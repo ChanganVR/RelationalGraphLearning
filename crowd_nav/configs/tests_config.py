@@ -92,6 +92,12 @@ class PolicyConfig(object):
     gcn = Config()
     gcn.multiagent_training = True
     gcn.num_layer = 2
+    gcn.X_dim = 32
+    gcn.wr_dims = [64, gcn.X_dim]
+    gcn.wh_dims = [64, gcn.X_dim]
+    gcn.final_state_dim = 64
+    gcn.gcn2_w1_dim = 128
+    gcn.planning_dims = [150, 100, 100, 1]
 
     def __init__(self, debug=False):
         pass

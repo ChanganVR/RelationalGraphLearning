@@ -91,7 +91,13 @@ class PolicyConfig(object):
 
     gcn = Config()
     gcn.multiagent_training = True
-    gcn.num_layer = 1
+    gcn.num_layer = 2
+    gcn.X_dim = 32
+    gcn.wr_dims = [64, gcn.X_dim]
+    gcn.wh_dims = [64, gcn.X_dim]
+    gcn.final_state_dim = 64
+    gcn.gcn2_w1_dim = 128
+    gcn.planning_dims = [150, 100, 100, 1]
 
     def __init__(self, debug=False):
         pass
@@ -105,7 +111,7 @@ class TrainConfig(object):
     imitation_learning.il_episodes = 3000
     imitation_learning.il_policy = 'orca'
     imitation_learning.il_epochs = 50
-    imitation_learning.il_learning_rate = 0.01
+    imitation_learning.il_learning_rate = 0.001
     imitation_learning.safety_space = 0.15
 
     train = Config()
