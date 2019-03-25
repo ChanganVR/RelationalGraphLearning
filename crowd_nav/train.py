@@ -48,11 +48,11 @@ def main(args):
     level = logging.INFO if not args.debug else logging.DEBUG
     logging.basicConfig(level=level, handlers=[stdout_handler, file_handler],
                         format='%(asctime)s, %(levelname)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
-    repo = git.Repo(search_parent_directories=True)
-    logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
+    #repo = git.Repo(search_parent_directories=True)
+    #logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
-    writer = SummaryWriter(log_dir='data/runs')
+    writer = SummaryWriter(log_dir=args.output_dir)
 
     # configure policy
     policy = policy_factory[args.policy]()
@@ -191,7 +191,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='cadrl')
-    parser.add_argument('--config', type=str, default='configs/icra_config.py')
+    parser.add_argument('--config', type=str, default='/cs/vml4/shah/CrowdNavExt/crowd_nav/configs/icra_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)

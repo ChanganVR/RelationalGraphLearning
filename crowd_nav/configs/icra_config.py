@@ -91,7 +91,7 @@ class PolicyConfig(object):
 
     gcn = Config()
     gcn.multiagent_training = True
-    gcn.num_layer = 1
+    gcn.num_layer = 2
 
     def __init__(self, debug=False):
         pass
@@ -105,7 +105,7 @@ class TrainConfig(object):
     imitation_learning.il_episodes = 3000
     imitation_learning.il_policy = 'orca'
     imitation_learning.il_epochs = 50
-    imitation_learning.il_learning_rate = 0.01
+    imitation_learning.il_learning_rate = 0.001
     imitation_learning.safety_space = 0.15
 
     train = Config()

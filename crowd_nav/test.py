@@ -22,7 +22,9 @@ def main(args):
             else:
                 model_weights = os.path.join(args.model_dir, 'rl_model.pth')
         else:
-            model_weights = os.path.join(args.model_dir, 'best_val.pth')
+
+            model_weights = os.path.join(args.model_dir, 'il_model.pth')
+            #model_weights = os.path.join(args.model_dir, 'best_val.pth')
 
     else:
         config_file = args.config

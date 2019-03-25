@@ -14,7 +14,10 @@ class ValueNetwork(nn.Module):
         self.joint_embed = True
         self.diagonal_A = False
         self.equal_attention = False
+        self.if_w_a = False
         logging.info('self.joint_embed:{}'.format(self.joint_embed))
+        logging.info('self.equal_attention:{}'.format(self.equal_attention))
+        logging.info('self.if_w_a:{}'.format(self.if_w_a))
 
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
@@ -23,20 +26,33 @@ class ValueNetwork(nn.Module):
 
         if self.joint_embed:
             self.X_dim = 32
-            self.w_r = mlp(self_state_dim, [64, self.X_dim], last_relu=True)
-            self.w_h = mlp(human_state_dim, [64, self.X_dim], last_relu=True)
+            '''
+            self.w_r = mlp(self_state_dim, [self.X_dim], last_relu=True)
+            self.w_h = mlp(human_state_dim, [self.X_dim], last_relu =True)            
+            '''
+            '''
+            self.w_r = mlp(self_state_dim, [32, self.X_dim], last_relu=True)
+            self.w_h = mlp(human_state_dim, [32, self.X_dim], last_relu=True)
+            '''
+            self.w_r = mlp(self_state_dim, [64, self.X_dim], last_relu = True)
+            self.w_h = mlp(human_state_dim, [32, self.X_dim], last_relu = True)
         else:
             self.X_dim = human_state_dim
             self.w_t = mlp(self_state_dim, [50, 50, self.X_dim], last_relu=True)
 
-        self.w_a = torch.nn.Parameter(torch.randn(self.X_dim, self.X_dim))
-
-        final_state_size = 128
+        if self.if_w_a :
+            self.w_a = torch.nn.Parameter(torch.randn(self.X_dim, self.X_dim))
+        else:
+            self.w_a = torch.eye(self.X_dim)
+        logging.info('self.w_a is initialized as : {}'.format(self.w_a))
+        final_state_size = 64
         if num_layer == 1:
             self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, final_state_size))
+            
         elif num_layer == 2:
-            self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, 128))
-            self.w2 = torch.nn.Parameter(torch.randn(128, final_state_size))
+            self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, 64))
+            self.w2 = torch.nn.Parameter(torch.randn(64, final_state_size))
+            
         else:
             raise NotImplementedError
 
@@ -112,6 +128,7 @@ class GCN(MultiHumanRL):
         num_layer = config.gcn.num_layer
         self.set_common_parameters(config)
         self.model = ValueNetwork(self.input_dim(), self.self_state_dim, num_layer)
+        logging.info('self.model:{}'.format(self.model))
         logging.info('GCN layers: {}'.format(num_layer))
         logging.info('Policy: {}'.format(self.name))
 

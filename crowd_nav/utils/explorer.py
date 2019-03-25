@@ -70,7 +70,7 @@ class Explorer(object):
 
             cumulative_rewards.append(sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
                                            * reward for t, reward in enumerate(rewards)]))
-
+            
         success_rate = success / k
         collision_rate = collision / k
         assert success + collision + timeout == k
