@@ -1,21 +1,23 @@
+import logging
+import itertools
 import torch
 import torch.nn as nn
 from torch.nn.functional import softmax, relu
-import logging
 from crowd_nav.policy.cadrl import mlp
 from crowd_nav.policy.multi_human_rl import MultiHumanRL
 
 
 class ValueNetwork(nn.Module):
     def __init__(self, input_dim, self_state_dim, num_layer, X_dim, wr_dims, wh_dims, final_state_dim,
-                 gcn2_w1_dim, planning_dims):
+                 gcn2_w1_dim, planning_dims, similarity_function):
         super().__init__()
         # architecture design parameters
         self.diagonal_A = False
         self.equal_attention = False
-        self.with_w_a = False
-        logging.info('self.equal_attention:{}'.format(self.equal_attention))
-        logging.info('self.with_w_a:{}'.format(self.with_w_a))
+        # 'gaussian', 'embedded_gaussian', 'cosine', 'cosine_softmax', 'concatenation'
+        self.similarity_function = similarity_function
+        logging.info('self.similarity_func: {}'.format(self.similarity_function))
+        logging.info('self.equal_attention: {}'.format(self.equal_attention))
 
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
@@ -26,17 +28,16 @@ class ValueNetwork(nn.Module):
         self.w_r = mlp(self_state_dim, wr_dims, last_relu=True)
         self.w_h = mlp(human_state_dim, wh_dims, last_relu=True)
 
-        if self.with_w_a:
+        if self.similarity_function == 'embedded_gaussian':
             self.w_a = torch.nn.Parameter(torch.randn(self.X_dim, self.X_dim))
-        else:
-            self.w_a = torch.eye(self.X_dim)
+        elif self.similarity_function == 'concatenation':
+            self.w_a = mlp(2 * X_dim, [2 * X_dim, 1], last_relu=True)
 
         if num_layer == 1:
             self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, final_state_dim))
         elif num_layer == 2:
             self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, gcn2_w1_dim))
             self.w2 = torch.nn.Parameter(torch.randn(gcn2_w1_dim, final_state_dim))
-            
         else:
             raise NotImplementedError
 
@@ -68,8 +69,32 @@ class ValueNetwork(nn.Module):
             normalized_A = torch.ones(X.size(1), X.size(1)) / X.size(1)
             self.A = normalized_A
         else:
-            A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
-            normalized_A = torch.nn.functional.softmax(A, dim=2)
+            if self.similarity_function == 'embedded_gaussian':
+                A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
+                normalized_A = softmax(A, dim=2)
+            elif self.similarity_function == 'gaussian':
+                A = torch.matmul(X, X.permute(0, 2, 1))
+                normalized_A = softmax(A, dim=2)
+            elif self.similarity_function == 'cosine':
+                A = torch.matmul(X, X.permute(0, 2, 1))
+                magnitudes = torch.norm(A, dim=2, keepdim=True)
+                norm_matrix = torch.matmul(magnitudes, magnitudes.permute(0, 2, 1))
+                normalized_A = torch.div(A, norm_matrix)
+            elif self.similarity_function == 'cosine_softmax':
+                A = torch.matmul(X, X.permute(0, 2, 1))
+                magnitudes = torch.norm(A, dim=2, keepdim=True)
+                norm_matrix = torch.matmul(magnitudes, magnitudes.permute(0, 2, 1))
+                normalized_A = softmax(torch.div(A, norm_matrix))
+            elif self.similarity_function == 'concatenation':
+                num_row = state.size(1) + 1
+                indices = [pair for pair in itertools.product(list(range(num_row)), repeat=2)]
+                selected_features = torch.index_select(X, dim=1, index=torch.LongTensor(indices).reshape(-1))
+                pairwise_features = selected_features.reshape((-1, num_row * num_row, self.X_dim * 2))
+                A = self.w_a(pairwise_features).reshape(-1, num_row, num_row)
+                normalized_A = A
+            else:
+                raise NotImplementedError
+
             self.A = normalized_A[0, :, :].data.cpu().numpy()
 
         # graph convolution
@@ -103,9 +128,10 @@ class GCN(MultiHumanRL):
         final_state_dim = config.gcn.final_state_dim
         gcn2_w1_dim = config.gcn.gcn2_w1_dim
         planning_dims = config.gcn.planning_dims
+        similarity_function = config.gcn.similarity_function
         self.set_common_parameters(config)
         self.model = ValueNetwork(self.input_dim(), self.self_state_dim, num_layer, X_dim, wr_dims, wh_dims,
-                                  final_state_dim, gcn2_w1_dim, planning_dims)
+                                  final_state_dim, gcn2_w1_dim, planning_dims, similarity_function)
         logging.info('self.model:{}'.format(self.model))
         logging.info('GCN layers: {}'.format(num_layer))
         logging.info('Policy: {}'.format(self.name))
