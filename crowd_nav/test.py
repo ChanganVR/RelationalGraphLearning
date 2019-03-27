@@ -12,32 +12,35 @@ from crowd_sim.envs.policy.orca import ORCA
 
 
 def main(args):
-    if args.model_dir is not None:
-        config_file = os.path.join(args.model_dir, args.config)
-        if args.il:
-            model_weights = os.path.join(args.model_dir, 'il_model.pth')
-        elif args.rl:
-            if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model.pth')):
-                model_weights = os.path.join(args.model_dir, 'resumed_rl_model.pth')
-            else:
-                model_weights = os.path.join(args.model_dir, 'rl_model.pth')
-        else:
-
-            model_weights = os.path.join(args.model_dir, 'il_model.pth')
-            #model_weights = os.path.join(args.model_dir, 'best_val.pth')
-
-    else:
-        config_file = args.config
-    spec = importlib.util.spec_from_file_location('config', config_file)
-    config = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(config)
-
     # configure logging and device
     level = logging.DEBUG if args.debug else logging.INFO
     logging.basicConfig(level=level, format='%(asctime)s, %(levelname)s: %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
+
+    if args.model_dir is not None:
+        config_file = os.path.join(args.model_dir, args.config)
+        if args.il:
+            model_weights = os.path.join(args.model_dir, 'il_model.pth')
+            logging.info('Loaded IL weights')
+        elif args.rl:
+            if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model.pth')):
+                model_weights = os.path.join(args.model_dir, 'resumed_rl_model.pth')
+            else:
+                model_weights = os.path.join(args.model_dir, 'rl_model.pth')
+            logging.info('Loaded RL weights')
+        else:
+            model_weights = os.path.join(args.model_dir, 'best_val.pth')
+            logging.info('Loaded RL weights with best VAL')
+
+    else:
+        config_file = args.config
+    spec = importlib.util.spec_from_file_location('config', config_file)
+    if spec is None:
+        parser.error('Config file not found.')
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
 
     # configure policy
     policy = policy_factory[args.policy]()
@@ -50,6 +53,8 @@ def main(args):
 
     # configure environment
     env_config = config.EnvConfig(args.debug)
+    if args.human_num is not None:
+        env_config.sim.human_num = args.human_num
     env = gym.make('CrowdSim-v0')
     env.configure(env_config)
     if args.square:
@@ -99,7 +104,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--config', type=str, default='icra_config.py')
-    parser.add_argument('--policy', type=str, default='orca')
+    parser.add_argument('--policy', type=str, default='gcn')
     parser.add_argument('--model_dir', type=str, default=None)
     parser.add_argument('--il', default=False, action='store_true')
     parser.add_argument('--rl', default=False, action='store_true')
@@ -112,6 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--video_file', type=str, default=None)
     parser.add_argument('--traj', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
+    parser.add_argument('--human_num', type=int, default=None)
     sys_args = parser.parse_args()
 
     main(sys_args)

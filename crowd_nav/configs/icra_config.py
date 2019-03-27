@@ -86,7 +86,7 @@ class PolicyConfig(object):
     sarl.attention_dims = [100, 100, 1]
     sarl.mlp3_dims = [150, 100, 100, 1]
     sarl.multiagent_training = True
-    sarl.with_om = False
+    sarl.with_om = True
     sarl.with_global_state = True
 
     gcn = Config()
@@ -98,7 +98,7 @@ class PolicyConfig(object):
     gcn.final_state_dim = 64
     gcn.gcn2_w1_dim = 128
     gcn.planning_dims = [150, 100, 100, 1]
-    gcn.similarity_function = 'consine'
+    gcn.similarity_function = 'cosine'
 
     def __init__(self, debug=False):
         pass

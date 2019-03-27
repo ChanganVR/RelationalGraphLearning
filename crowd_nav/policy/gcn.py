@@ -84,7 +84,7 @@ class ValueNetwork(nn.Module):
                 A = torch.matmul(X, X.permute(0, 2, 1))
                 magnitudes = torch.norm(A, dim=2, keepdim=True)
                 norm_matrix = torch.matmul(magnitudes, magnitudes.permute(0, 2, 1))
-                normalized_A = softmax(torch.div(A, norm_matrix))
+                normalized_A = softmax(torch.div(A, norm_matrix), dim=2)
             elif self.similarity_function == 'concatenation':
                 num_row = state.size(1) + 1
                 indices = [pair for pair in itertools.product(list(range(num_row)), repeat=2)]

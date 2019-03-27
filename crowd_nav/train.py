@@ -16,7 +16,6 @@ from crowd_nav.utils.explorer import Explorer
 from crowd_nav.policy.policy_factory import policy_factory
 
 
-#test
 def main(args):
     # configure paths
     make_new_dir = True
@@ -38,6 +37,8 @@ def main(args):
     il_weight_file = os.path.join(args.output_dir, 'il_model.pth')
     rl_weight_file = os.path.join(args.output_dir, 'rl_model.pth')
     spec = importlib.util.spec_from_file_location('config', args.config)
+    if spec is None:
+        parser.error('Config file not found.')
     config = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config)
 
@@ -48,8 +49,8 @@ def main(args):
     level = logging.INFO if not args.debug else logging.DEBUG
     logging.basicConfig(level=level, handlers=[stdout_handler, file_handler],
                         format='%(asctime)s, %(levelname)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
-    #repo = git.Repo(search_parent_directories=True)
-    #logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
+    repo = git.Repo(search_parent_directories=True)
+    logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
     writer = SummaryWriter(log_dir=args.output_dir)
@@ -190,7 +191,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
-    parser.add_argument('--policy', type=str, default='cadrl')
+    parser.add_argument('--policy', type=str, default='gcn')
     parser.add_argument('--config', type=str, default='configs/icra_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
