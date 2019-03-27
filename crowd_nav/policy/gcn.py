@@ -9,21 +9,19 @@ from crowd_nav.policy.multi_human_rl import MultiHumanRL
 
 class ValueNetwork(nn.Module):
     def __init__(self, input_dim, self_state_dim, num_layer, X_dim, wr_dims, wh_dims, final_state_dim,
-                 gcn2_w1_dim, planning_dims, similarity_function):
+                 gcn2_w1_dim, planning_dims, similarity_function, update_edge):
         super().__init__()
-        # architecture design parameters
-        self.diagonal_A = False
-        self.equal_attention = False
+        # design choice
+
         # 'gaussian', 'embedded_gaussian', 'cosine', 'cosine_softmax', 'concatenation'
         self.similarity_function = similarity_function
         logging.info('self.similarity_func: {}'.format(self.similarity_function))
-        logging.info('self.equal_attention: {}'.format(self.equal_attention))
-
         human_state_dim = input_dim - self_state_dim
         self.self_state_dim = self_state_dim
         self.human_state_dim = human_state_dim
         self.num_layer = num_layer
         self.X_dim = X_dim
+        self.update_edge = update_edge
 
         self.w_r = mlp(self_state_dim, wr_dims, last_relu=True)
         self.w_h = mlp(human_state_dim, wh_dims, last_relu=True)
@@ -46,6 +44,38 @@ class ValueNetwork(nn.Module):
         # for visualization
         self.A = None
 
+    def compute_similarity_matrix(self, X):
+        if self.similarity_function == 'embedded_gaussian':
+            A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
+            normalized_A = softmax(A, dim=2)
+        elif self.similarity_function == 'gaussian':
+            A = torch.matmul(X, X.permute(0, 2, 1))
+            normalized_A = softmax(A, dim=2)
+        elif self.similarity_function == 'cosine':
+            A = torch.matmul(X, X.permute(0, 2, 1))
+            magnitudes = torch.norm(A, dim=2, keepdim=True)
+            norm_matrix = torch.matmul(magnitudes, magnitudes.permute(0, 2, 1))
+            normalized_A = torch.div(A, norm_matrix)
+        elif self.similarity_function == 'cosine_softmax':
+            A = torch.matmul(X, X.permute(0, 2, 1))
+            magnitudes = torch.norm(A, dim=2, keepdim=True)
+            norm_matrix = torch.matmul(magnitudes, magnitudes.permute(0, 2, 1))
+            normalized_A = softmax(torch.div(A, norm_matrix), dim=2)
+        elif self.similarity_function == 'concatenation':
+            indices = [pair for pair in itertools.product(list(range(X.size(1))), repeat=2)]
+            selected_features = torch.index_select(X, dim=1, index=torch.LongTensor(indices).reshape(-1))
+            pairwise_features = selected_features.reshape((-1, X.size(1) * X.size(1), self.X_dim * 2))
+            A = self.w_a(pairwise_features).reshape(-1, X.size(1), X.size(1))
+            normalized_A = A
+        elif self.similarity_function == 'equal_attention':
+            normalized_A = (torch.ones(X.size(1), X.size(1)) / X.size(1)).expand(X.size(0), X.size(1), X.size(1))
+        elif self.similarity_function == 'diagonal':
+            normalized_A = (torch.eye(X.size(1), X.size(1))).expand(X.size(0), X.size(1), X.size(1))
+        else:
+            raise NotImplementedError
+
+        return normalized_A
+
     def forward(self, state_input):
         if isinstance(state_input, tuple):
             state, lengths = state_input
@@ -62,40 +92,8 @@ class ValueNetwork(nn.Module):
         X = torch.cat([self_state_embedings.unsqueeze(1), human_state_embedings], dim=1)
 
         # compute matrix A
-        if self.diagonal_A:
-            normalized_A = torch.eye(X.size(1), X.size(1))
-            self.A = normalized_A
-        elif self.equal_attention:
-            normalized_A = torch.ones(X.size(1), X.size(1)) / X.size(1)
-            self.A = normalized_A
-        else:
-            if self.similarity_function == 'embedded_gaussian':
-                A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
-                normalized_A = softmax(A, dim=2)
-            elif self.similarity_function == 'gaussian':
-                A = torch.matmul(X, X.permute(0, 2, 1))
-                normalized_A = softmax(A, dim=2)
-            elif self.similarity_function == 'cosine':
-                A = torch.matmul(X, X.permute(0, 2, 1))
-                magnitudes = torch.norm(A, dim=2, keepdim=True)
-                norm_matrix = torch.matmul(magnitudes, magnitudes.permute(0, 2, 1))
-                normalized_A = torch.div(A, norm_matrix)
-            elif self.similarity_function == 'cosine_softmax':
-                A = torch.matmul(X, X.permute(0, 2, 1))
-                magnitudes = torch.norm(A, dim=2, keepdim=True)
-                norm_matrix = torch.matmul(magnitudes, magnitudes.permute(0, 2, 1))
-                normalized_A = softmax(torch.div(A, norm_matrix), dim=2)
-            elif self.similarity_function == 'concatenation':
-                num_row = state.size(1) + 1
-                indices = [pair for pair in itertools.product(list(range(num_row)), repeat=2)]
-                selected_features = torch.index_select(X, dim=1, index=torch.LongTensor(indices).reshape(-1))
-                pairwise_features = selected_features.reshape((-1, num_row * num_row, self.X_dim * 2))
-                A = self.w_a(pairwise_features).reshape(-1, num_row, num_row)
-                normalized_A = A
-            else:
-                raise NotImplementedError
-
-            self.A = normalized_A[0, :, :].data.cpu().numpy()
+        normalized_A = self.compute_similarity_matrix(X)
+        self.A = normalized_A[0, :, :].data.cpu().numpy()
 
         # graph convolution
         if self.num_layer == 0:
@@ -106,7 +104,11 @@ class ValueNetwork(nn.Module):
         else:
             # compute h1 and h2
             h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1))
-            h2 = relu(torch.matmul(torch.matmul(normalized_A, h1), self.w2))
+            if self.update_edge:
+                normalized_A2 = self.compute_similarity_matrix(h1)
+            else:
+                normalized_A2 = normalized_A
+            h2 = relu(torch.matmul(torch.matmul(normalized_A2, h1), self.w2))
             feat = h2[:, 0, :]
 
         # do planning using only the final layer feature of the agent
@@ -129,9 +131,10 @@ class GCN(MultiHumanRL):
         gcn2_w1_dim = config.gcn.gcn2_w1_dim
         planning_dims = config.gcn.planning_dims
         similarity_function = config.gcn.similarity_function
+        update_edge = config.gcn.update_edge
         self.set_common_parameters(config)
         self.model = ValueNetwork(self.input_dim(), self.self_state_dim, num_layer, X_dim, wr_dims, wh_dims,
-                                  final_state_dim, gcn2_w1_dim, planning_dims, similarity_function)
+                                  final_state_dim, gcn2_w1_dim, planning_dims, similarity_function, update_edge)
         logging.info('self.model:{}'.format(self.model))
         logging.info('GCN layers: {}'.format(num_layer))
         logging.info('Policy: {}'.format(self.name))

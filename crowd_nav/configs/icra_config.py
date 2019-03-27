@@ -98,7 +98,8 @@ class PolicyConfig(object):
     gcn.final_state_dim = 64
     gcn.gcn2_w1_dim = 128
     gcn.planning_dims = [150, 100, 100, 1]
-    gcn.similarity_function = 'cosine'
+    gcn.similarity_function = 'gaussian'
+    gcn.update_edge = True
 
     def __init__(self, debug=False):
         pass
