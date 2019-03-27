@@ -132,6 +132,7 @@ class GCN(MultiHumanRL):
     def configure(self, config):
         self.multiagent_training = config.gcn.multiagent_training
         num_layer = config.gcn.num_layer
+
         X_dim = config.gcn.X_dim
         wr_dims = config.gcn.wr_dims
         wh_dims = config.gcn.wh_dims
@@ -140,6 +141,7 @@ class GCN(MultiHumanRL):
         planning_dims = config.gcn.planning_dims
         similarity_function = config.gcn.similarity_function
         update_edge = config.gcn.update_edge
+
         self.set_common_parameters(config)
         self.model = ValueNetwork(self.input_dim(), self.self_state_dim, num_layer, X_dim, wr_dims, wh_dims,
                                   final_state_dim, gcn2_w1_dim, planning_dims, similarity_function, update_edge)

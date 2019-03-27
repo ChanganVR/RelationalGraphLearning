@@ -18,9 +18,9 @@ class EnvConfig(object):
     reward.discomfort_penalty_factor = 0.5
 
     sim = Config()
-    sim.train_val_scenario = 'circle_crossing'
-    sim.test_scenario = 'circle_crossing'
-    sim.square_width = 10
+    sim.train_val_scenario = 'square_crossing'
+    sim.test_scenario = 'square_crossing'
+    sim.square_width = 40
     sim.circle_radius = 4
     sim.human_num = 5
     sim.nonstop_human = False
@@ -91,6 +91,7 @@ class PolicyConfig(object):
 
     gcn = Config()
     gcn.multiagent_training = True
+
     gcn.num_layer = 2
     gcn.X_dim = 32
     gcn.wr_dims = [64, gcn.X_dim]
@@ -100,6 +101,7 @@ class PolicyConfig(object):
     gcn.planning_dims = [150, 100, 100, 1]
     gcn.similarity_function = 'embedded_gaussian'
     gcn.update_edge = True
+
 
     def __init__(self, debug=False):
         pass
