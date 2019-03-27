@@ -3,6 +3,7 @@ import itertools
 import torch
 import torch.nn as nn
 from torch.nn.functional import softmax, relu
+from torch.nn import Parameter
 from crowd_nav.policy.cadrl import mlp
 from crowd_nav.policy.multi_human_rl import MultiHumanRL
 
@@ -27,17 +28,15 @@ class ValueNetwork(nn.Module):
         self.w_h = mlp(human_state_dim, wh_dims, last_relu=True)
 
         if self.similarity_function == 'embedded_gaussian':
-            self.w_a = torch.nn.Parameter(torch.randn(self.X_dim, self.X_dim))
-            self.w_a2 = torch.nn.Parameter(torch.randn(gcn2_w1_dim, gcn2_w1_dim))
+            self.w_a = Parameter(torch.randn(self.X_dim, self.X_dim))
         elif self.similarity_function == 'concatenation':
             self.w_a = mlp(2 * X_dim, [2 * X_dim, 1], last_relu=True)
-            self.w_a2 = mlp(2 * gcn2_w1_dim, [2 * gcn2_w1_dim, 1], last_relu=True)
 
         if num_layer == 1:
-            self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, final_state_dim))
+            self.w1 = Parameter(torch.randn(self.X_dim, final_state_dim))
         elif num_layer == 2:
-            self.w1 = torch.nn.Parameter(torch.randn(self.X_dim, gcn2_w1_dim))
-            self.w2 = torch.nn.Parameter(torch.randn(gcn2_w1_dim, final_state_dim))
+            self.w1 = Parameter(torch.randn(self.X_dim, gcn2_w1_dim))
+            self.w2 = Parameter(torch.randn(gcn2_w1_dim, final_state_dim))
         else:
             raise NotImplementedError
 
@@ -48,10 +47,7 @@ class ValueNetwork(nn.Module):
 
     def compute_similarity_matrix(self, X):
         if self.similarity_function == 'embedded_gaussian':
-            if self.w_a.size(0) == X.size(2):
-                A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
-            else:
-                A = torch.matmul(torch.matmul(X, self.w_a2), X.permute(0, 2, 1))
+            A = torch.matmul(torch.matmul(X, self.w_a), X.permute(0, 2, 1))
             normalized_A = softmax(A, dim=2)
         elif self.similarity_function == 'gaussian':
             A = torch.matmul(X, X.permute(0, 2, 1))
@@ -70,10 +66,7 @@ class ValueNetwork(nn.Module):
             indices = [pair for pair in itertools.product(list(range(X.size(1))), repeat=2)]
             selected_features = torch.index_select(X, dim=1, index=torch.LongTensor(indices).reshape(-1))
             pairwise_features = selected_features.reshape((-1, X.size(1) * X.size(1), X.size(2) * 2))
-            if self.w_a[0].in_features == X.size(2) * 2:
-                A = self.w_a(pairwise_features).reshape(-1, X.size(1), X.size(1))
-            else:
-                A = self.w_a2(pairwise_features).reshape(-1, X.size(1), X.size(1))
+            A = self.w_a(pairwise_features).reshape(-1, X.size(1), X.size(1))
             normalized_A = A
         elif self.similarity_function == 'equal_attention':
             normalized_A = (torch.ones(X.size(1), X.size(1)) / X.size(1)).expand(X.size(0), X.size(1), X.size(1))

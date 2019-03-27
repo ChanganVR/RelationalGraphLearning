@@ -95,10 +95,10 @@ class PolicyConfig(object):
     gcn.X_dim = 32
     gcn.wr_dims = [64, gcn.X_dim]
     gcn.wh_dims = [64, gcn.X_dim]
-    gcn.final_state_dim = 64
-    gcn.gcn2_w1_dim = 128
+    gcn.final_state_dim = gcn.X_dim
+    gcn.gcn2_w1_dim = gcn.X_dim
     gcn.planning_dims = [150, 100, 100, 1]
-    gcn.similarity_function = 'embedded_gaussian'
+    gcn.similarity_function = 'cosine'
     gcn.update_edge = True
 
     def __init__(self, debug=False):
