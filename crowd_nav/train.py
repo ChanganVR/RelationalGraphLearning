@@ -28,10 +28,10 @@ def main(args):
                 shutil.rmtree(args.output_dir)
             else:
                 make_new_dir = False
-                args.config = os.path.join(args.output_dir, args.config)
+                args.config = os.path.join(args.output_dir, 'config.py')
     if make_new_dir:
         os.makedirs(args.output_dir)
-        shutil.copy(args.config, args.output_dir)
+        shutil.copy(args.config, os.path.join(args.output_dir, 'config.py'))
     
     log_file = os.path.join(args.output_dir, 'output.log')
     il_weight_file = os.path.join(args.output_dir, 'il_model.pth')

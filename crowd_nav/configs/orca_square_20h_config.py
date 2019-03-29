@@ -24,11 +24,11 @@ class EnvConfig(object):
     sim.circle_radius = 5
     sim.human_num = 20
     sim.nonstop_human = True
-    sim.centralized_planning = False
+    sim.centralized_planning = True
 
     humans = Config()
     humans.visible = True
-    humans.policy = 'socialforce'
+    humans.policy = 'orca'
     humans.radius = 0.3
     humans.v_pref = 1
     humans.sensor = 'coordinates'
