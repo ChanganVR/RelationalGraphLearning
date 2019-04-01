@@ -68,6 +68,10 @@ class ValueNetwork(nn.Module):
             pairwise_features = selected_features.reshape((-1, X.size(1) * X.size(1), X.size(2) * 2))
             A = self.w_a(pairwise_features).reshape(-1, X.size(1), X.size(1))
             normalized_A = A
+        elif self.similarity_function == 'squared':
+            A = torch.matmul(X, X.permute(0, 2, 1))
+            squared_A = A * A
+            normalized_A = squared_A / torch.sum(squared_A, dim=2, keepdim=True)
         elif self.similarity_function == 'equal_attention':
             normalized_A = (torch.ones(X.size(1), X.size(1)) / X.size(1)).expand(X.size(0), X.size(1), X.size(1))
         elif self.similarity_function == 'diagonal':

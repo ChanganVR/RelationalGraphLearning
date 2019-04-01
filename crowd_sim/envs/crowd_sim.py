@@ -309,31 +309,11 @@ class CrowdSim(gym.Env):
                     self.generate_human(human)
             self.global_time += self.time_step
 
-            # compute the observation
-            if self.robot.sensor == 'coordinates':
-                ob = self.compute_observation_for(self.robot)
-            elif self.robot.sensor == 'RGB':
-                raise NotImplementedError
-        else:
-            if self.robot.sensor == 'coordinates':
-                # ob = []
-                # for human, action in zip(self.humans, human_actions):
-                #     if norm((self.robot.px - human.px, self.robot.py - human.py)) < self.robot_sensor_range:
-                #         ob.append(human.get_next_observable_state(action))
-                #
-                # # if no human in the sensor range, choose the closest one
-                # if not ob:
-                #     distances = [norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans]
-                #     closest_human_index = np.argmin(distances)
-                #     ob.append(self.humans[closest_human_index].get_next_observable_state(action))
-                ob = []
-                distances = np.array(
-                    [norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans])
-                closest_indices = distances.argsort()[:10]
-                for index in closest_indices:
-                    ob.append(self.humans[index].get_next_observable_state(human_actions[index]))
-            elif self.robot.sensor == 'RGB':
-                raise NotImplementedError
+        # compute the observation
+        if self.robot.sensor == 'coordinates':
+            ob = self.compute_observation_for(self.robot)
+        elif self.robot.sensor == 'RGB':
+            raise NotImplementedError
 
         return ob, reward, done, info
 
@@ -350,10 +330,14 @@ class CrowdSim(gym.Env):
             #     closest_human_index = np.argmin(distances)
             #     ob.append(self.humans[closest_human_index].get_observable_state())
             ob = []
-            distances = np.array([norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans])
-            closest_indices = distances.argsort()[:10]
-            for index in closest_indices:
-                ob.append(self.humans[index].get_observable_state())
+            for human in self.humans:
+                ob.append(human.get_observable_state())
+
+            # # only select closest N humans
+            # distances = np.array([norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans])
+            # closest_indices = distances.argsort()[:10]
+            # for index in closest_indices:
+            #     ob.append(self.humans[index].get_observable_state())
         else:
             ob = [other_human.get_observable_state() for other_human in self.humans if other_human != agent]
             if self.robot.visible:
@@ -536,8 +520,12 @@ class CrowdSim(gym.Env):
                 plt.show()
 
             def print_matrix_A():
-                with np.printoptions(precision=3, suppress=True):
-                    print(self.As[global_step])
+                # with np.printoptions(precision=3, suppress=True):
+                #     print(self.As[global_step])
+                h, w = self.As[global_step].shape
+                print('   ' + ' '.join(['{:>5}'.format(i-1) for i in range(w)]))
+                for i in range(h):
+                    print('{:<3}'.format(i-1) + ' '.join(['{:.3f}'.format(self.As[global_step][i][j]) for j in range(w)]))
 
             def on_click(event):
                 if anim.running:
