@@ -101,8 +101,8 @@ class PolicyConfig(object):
     gcn.final_state_dim = 64
     gcn.gcn2_w1_dim = 128
     gcn.planning_dims = [150, 100, 100, 1]
-    gcn.similarity_function = 'equal_attention'
-    #gcn.similarity_function = 'gaussian'
+    #gcn.similarity_function = 'equal_attention'
+    gcn.similarity_function = 'gaussian'
     gcn.update_edge = False
 
 
@@ -138,7 +138,7 @@ class TrainConfig(object):
     train.epsilon_start = 0.5
     train.epsilon_end = 0.1
     train.epsilon_decay = 4000
-    train.checkpoint_interval = 1000
+    train.checkpoint_interval = train.train_episodes
 
     def __init__(self, debug=False):
         if debug:

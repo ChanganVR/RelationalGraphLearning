@@ -165,29 +165,29 @@ def main(args):
 
             # sample k episodes into memory and optimize over the generated memory
             sr, cr, time, reward = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True, episode=episode, epoch = e_id, save_scene_dir = save_scene_dir)
-            writer.add_scalar('train/success_rate', sr, episode * (e_id + 1))
-            writer.add_scalar('train/collision_rate', cr, episode * (e_id + 1))
-            writer.add_scalar('train/time', time, episode * (e_id + 1))
-            writer.add_scalar('train/reward', reward, episode * (e_id + 1))
+            writer.add_scalar('train/success_rate', sr, episode + train_episodes * e_id )
+            writer.add_scalar('train/collision_rate', cr, episode + train_episodes * e_id )
+            writer.add_scalar('train/time', time, episode + train_episodes * e_id )
+            writer.add_scalar('train/reward', reward, episode + train_episodes * e_id )
 
             trainer.optimize_batch(train_batches)
             episode += 1
 
-            if episode * (e_id + 1) % target_update_interval == 0:
+            if (episode + train_episodes * e_id ) % target_update_interval == 0:
                 explorer.update_target_model(model)
             # evaluate the model
-            if episode * (e_id + 1) % evaluation_interval == 0:
+            if (episode + train_episodes * e_id ) % evaluation_interval == 0:
                 sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch = e_id)
-                writer.add_scalar('val/success_rate', sr, episode * (e_id + 1)// evaluation_interval)
-                writer.add_scalar('val/collision_rate', cr, episode * (e_id + 1)// evaluation_interval)
-                writer.add_scalar('val/time', time, episode * (e_id + 1)// evaluation_interval)
-                writer.add_scalar('val/reward', reward, episode * (e_id + 1)// evaluation_interval)
+                writer.add_scalar('val/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
+                writer.add_scalar('val/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
+                writer.add_scalar('val/time', time, (episode + train_episodes * e_id ) // evaluation_interval)
+                writer.add_scalar('val/reward', reward, (episode + train_episodes * e_id )// evaluation_interval)
 
-                if episode % checkpoint_interval == 0 and reward > best_val_reward:
+                if (episode + train_episodes * e_id)% checkpoint_interval == 0 and reward > best_val_reward:
                     best_val_reward = reward
                     best_val_model = copy.deepcopy(model.state_dict())
 
-            if episode != 0 and episode % checkpoint_interval == 0:
+            if episode != 0 and (episode + train_episodes * e_id) % checkpoint_interval == 0:
                 torch.save(model.state_dict(), rl_weight_file)
 
     # test with the best val model
