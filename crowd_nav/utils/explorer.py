@@ -1,6 +1,8 @@
 import logging
 import copy
 import torch
+from tqdm import tqdm
+import os
 from crowd_sim.envs.utils.info import *
 
 
@@ -18,8 +20,8 @@ class Explorer(object):
         self.target_model = copy.deepcopy(target_model)
 
     # @profile
-    def run_k_episodes(self, k, phase, update_memory=False, imitation_learning=False, episode=None,
-                       print_failure=False):
+    def run_k_episodes(self, k, phase, update_memory=False, imitation_learning=False, episode=None, epoch= None,
+                       print_failure=False, save_scene_dir = None):
         self.robot.policy.set_phase(phase)
         success_times = []
         collision_times = []
@@ -32,51 +34,57 @@ class Explorer(object):
         cumulative_rewards = []
         collision_cases = []
         timeout_cases = []
-        for i in range(k):
-            ob = self.env.reset(phase)
-            done = False
-            states = []
-            actions = []
-            rewards = []
-            while not done:
-                action = self.robot.act(ob)
-                ob, reward, done, info = self.env.step(action)
-                states.append(self.robot.policy.last_state)
-                actions.append(action)
-                rewards.append(reward)
 
-                if isinstance(info, Discomfort):
-                    discomfort += 1
-                    min_dist.append(info.min_dist)
+        with tqdm(total=k) as pbar:
+            for i in range(k):
+                ob = self.env.reset(phase)
+                if save_scene_dir is not None:
+                    self.env.render('scene', os.path.join(save_scene_dir, 'il' + str(imitation_learning) + phase + '_' + str(i) + '.jpg'))
 
-            if isinstance(info, ReachGoal):
-                success += 1
-                success_times.append(self.env.global_time)
-            elif isinstance(info, Collision):
-                collision += 1
-                collision_cases.append(i)
-                collision_times.append(self.env.global_time)
-            elif isinstance(info, Timeout):
-                timeout += 1
-                timeout_cases.append(i)
-                timeout_times.append(self.env.time_limit)
-            else:
-                raise ValueError('Invalid end signal from environment')
+                done = False
+                states = []
+                actions = []
+                rewards = []
+                while not done:
+                    action = self.robot.act(ob)
+                    ob, reward, done, info = self.env.step(action)
+                    states.append(self.robot.policy.last_state)
+                    actions.append(action)
+                    rewards.append(reward)
 
-            if update_memory:
-                if isinstance(info, ReachGoal) or isinstance(info, Collision):
-                    # only add positive(success) or negative(collision) experience in experience set
-                    self.update_memory(states, actions, rewards, imitation_learning)
+                    if isinstance(info, Discomfort):
+                        discomfort += 1
+                        min_dist.append(info.min_dist)
 
-            cumulative_rewards.append(sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
-                                           * reward for t, reward in enumerate(rewards)]))
-            
+                if isinstance(info, ReachGoal):
+                    success += 1
+                    success_times.append(self.env.global_time)
+                elif isinstance(info, Collision):
+                    collision += 1
+                    collision_cases.append(i)
+                    collision_times.append(self.env.global_time)
+                elif isinstance(info, Timeout):
+                    timeout += 1
+                    timeout_cases.append(i)
+                    timeout_times.append(self.env.time_limit)
+                else:
+                    raise ValueError('Invalid end signal from environment')
+
+                if update_memory:
+                    if isinstance(info, ReachGoal) or isinstance(info, Collision):
+                        # only add positive(success) or negative(collision) experience in experience set
+                        self.update_memory(states, actions, rewards, imitation_learning)
+
+                cumulative_rewards.append(sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
+                                               * reward for t, reward in enumerate(rewards)]))
+                pbar.update(1)
         success_rate = success / k
         collision_rate = collision / k
         assert success + collision + timeout == k
         avg_nav_time = sum(success_times) / len(success_times) if success_times else self.env.time_limit
 
         extra_info = '' if episode is None else 'in episode {} '.format(episode)
+        extra_info = extra_info + '' if epoch is None else extra_info + ' in epoch {} '.format(epoch)
         logging.info('{:<5} {}has success rate: {:.2f}, collision rate: {:.2f}, nav time: {:.2f}, total reward: {:.4f}'.
                      format(phase.upper(), extra_info, success_rate, collision_rate, avg_nav_time,
                             average(cumulative_rewards)))

@@ -47,6 +47,8 @@ class Agent(object):
     def set(self, px, py, gx, gy, vx, vy, theta, radius=None, v_pref=None):
         self.px = px
         self.py = py
+        self.sx = px
+        self.sy = py
         self.gx = gx
         self.gy = gy
         self.vx = vx
@@ -84,6 +86,9 @@ class Agent(object):
 
     def get_goal_position(self):
         return self.gx, self.gy
+
+    def get_start_position(self):
+        return self.sx, self.sy
 
     def get_velocity(self):
         return self.vx, self.vy

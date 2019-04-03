@@ -2,6 +2,7 @@ import logging
 import gym
 import matplotlib.lines as mlines
 import numpy as np
+import random
 from matplotlib import patches
 from numpy.linalg import norm
 from crowd_sim.envs.policy.policy_factory import policy_factory
@@ -71,6 +72,8 @@ class CrowdSim(gym.Env):
         self.square_width = config.sim.square_width
         self.circle_radius = config.sim.circle_radius
         self.human_num = config.sim.human_num
+        self.group_num = config.sim.group_num
+        self.group_size = config.sim.group_size
         self.nonstop_human = config.sim.nonstop_human
         self.centralized_planning = config.sim.centralized_planning
         self.case_counter = {'train': 0, 'test': 0, 'val': 0}
@@ -116,6 +119,7 @@ class CrowdSim(gym.Env):
                 if not collide:
                     break
             human.set(px, py, -px, -py, 0, 0, 0)
+
         elif self.current_scenario == 'square_crossing':
             if np.random.random() > 0.5:
                 sign = -1
@@ -142,9 +146,93 @@ class CrowdSim(gym.Env):
                 if not collide:
                     break
             human.set(px, py, gx, gy, 0, 0, 0)
+        return human
+
+    def generate_group(self, group_size = 3):
+        group = [Human(self.config, 'humans') for i in range(group_size)]
+
+        if self.current_scenario == 'group_circle_crossing':
+            circle_radius = self.circle_radius
+            door_distance = circle_radius * 1
+            human = group[0]
+
+            if self.count_el_pair % 2:
+                el_type = 'crossing'
+            else:
+                el_type = 'perpendicular'
+
+            def generate_entry_leave(circle_radius, type = 'crossing'):
+                angle = np.random.random() * np.pi * 2
+                # add some noise to simulate all the possible cases robot could meet with human
+                if type == 'crossing':
+                    px_noise = (np.random.random() - 0.5) * human.v_pref
+                    py_noise = (np.random.random() - 0.5) * human.v_pref
+                    ex = circle_radius * np.cos(angle) + px_noise
+                    ey = circle_radius * np.sin(angle) + py_noise
+                else:
+                    if np.random.random() > 0.5:
+                        sign = -1
+                    else:
+                        sign = 1
+                    px_noise = np.random.random() *2
+
+                    ex = (self.robot.get_start_position()[0] + sign *( 3 + px_noise ))
+                    if sign == 1:
+                        # the human and robot start from the same direction
+                        ey = self.robot.get_start_position()[1]
+                    else:
+                        # the human and robot starts from the opposite direction
+                        ey = self.robot.get_goal_position()[1]
+
+                if type == 'crossing':
+                    lx = -ex
+                    ly = -ey
+                elif type == 'perpendicular':
+                    lx = ex
+                    ly = -ey
+                else:
+                    raise NotImplementedError
+                return ex, ey, lx, ly
+
+            while True:
+                ex, ey, lx, ly = generate_entry_leave(circle_radius, el_type)
+                if len(self.entries) > 0:
+                    for i, e in enumerate(self.entries):
+                        l = self.leaves[i]
+                        e_collide = norm((e[0] - ex, e[1] - ey)) < door_distance
+                        l_collide = norm((l[0] - lx, l[1] - ly)) < door_distance
+                        collide = e_collide | l_collide
+                        if collide:
+                            break
+                    r_s_collide = norm((ex - self.robot.get_start_position()[0], ey - self.robot.get_start_position()[1])) < self.robot.radius + human.radius + self.discomfort_dist * 10
+                    r_g_collide = norm((lx - self.robot.get_goal_position()[0], ey - self.robot.get_goal_position()[1])) < self.robot.radius + human.radius + self.discomfort_dist * 10
+
+                    collide = e_collide | l_collide | r_s_collide | r_g_collide
+                else:
+                    break
+                if not collide:
+                    break
+
+            self.entries.append([ex, ey])
+            self.leaves.append([lx, ly])
+
+            self.count_el_pair += 1
+
+            # assume perpendicular entry and horizontal leave
+            # todo: add poisson distribution to model human enter time
+            sps = [[ex, ey + i * (human.radius + self.discomfort_dist)] for i in range(-(group_size//2), (group_size//2)+1)]
+            gps = [[lx + i * (human.radius + self.discomfort_dist), ly] for i in range(-(group_size//2), (group_size//2)+1)]
+
+            # shuffle to avoid parallel path
+            random.shuffle(sps)
+            random.shuffle(gps)
+
+            for i, human in enumerate(group):
+                human.set(sps[i][0], sps[i][1], gps[i][0], gps[i][1], 0, 0, 0)
         else:
             raise NotImplementedError
-        return human
+        return group
+
 
     def reset(self, phase='test', test_case=None):
         """
@@ -163,16 +251,30 @@ class CrowdSim(gym.Env):
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)
         if self.case_counter[phase] >= 0:
             np.random.seed(base_seed[phase] + self.case_counter[phase])
+            random.seed(base_seed[phase] + self.case_counter[phase])
             if not self.robot.policy.multiagent_training and phase in ['train', 'val']:
                 # only CADRL trains in circle crossing simulation
                 human_num = 1
                 self.current_scenario = 'circle_crossing'
             else:
-                human_num = self.human_num
                 self.current_scenario = self.test_scenario
+                if not self.current_scenario.startswith('group'):
+                    human_num = self.human_num
+                else:
+                    group_num = self.group_num
             self.humans = []
-            for _ in range(human_num):
-                self.humans.append(self.generate_human())
+
+            if not self.current_scenario.startswith('group'):
+                for _ in range(human_num):
+                    self.humans.append(self.generate_human())
+            else:
+                self.entries = []
+                self.leaves = []
+                self.count_el_pair = 0
+                for _ in range(group_num):
+                    group_size = self.group_size
+                    self.humans.extend(self.generate_group(group_size))
+                self.human_num = len(self.humans)
             # case_counter is always between 0 and case_size[phase]
             self.case_counter[phase] = (self.case_counter[phase] + 1) % self.case_size[phase]
         else:
@@ -363,26 +465,61 @@ class CrowdSim(gym.Env):
     def render(self, mode='human', output_file=None):
         from matplotlib import animation
         import matplotlib.pyplot as plt
+
         plt.rcParams['animation.ffmpeg_path'] = '/usr/bin/ffmpeg'
 
         x_offset = 0.2
         y_offset = 0.4
         cmap = plt.cm.get_cmap('hsv', 10)
-        robot_color = 'yellow'
-        goal_color = 'red'
-        arrow_color = 'red'
+        robot_color = 'black'
         arrow_style = patches.ArrowStyle("->", head_length=4, head_width=2)
         display_numbers = True
 
         if mode == 'human':
             fig, ax = plt.subplots(figsize=(7, 7))
-            ax.set_xlim(-4, 4)
-            ax.set_ylim(-4, 4)
+            ax.set_xlim(-5, 5)
+            ax.set_ylim(-5, 5)
             for human in self.humans:
                 human_circle = plt.Circle(human.get_position(), human.radius, fill=False, color='b')
                 ax.add_artist(human_circle)
             ax.add_artist(plt.Circle(self.robot.get_position(), self.robot.radius, fill=True, color='r'))
             plt.show()
+
+        elif mode == 'scene':
+            fig, ax = plt.subplots(figsize=(7, 7))
+            ax.set_xlim(-11, 11)
+            ax.set_ylim(-11, 11)
+
+            # add human start positions and goals
+            human_colors = [cmap(i) for i in range(len(self.humans))]
+            for i in range(len(self.humans)):
+                human = self.humans[i]
+                human_goal = mlines.Line2D([human.get_goal_position()[0]], [human.get_goal_position()[1]],
+                                           color=human_colors[i],
+                                           marker='*', linestyle='None', markersize=15)
+                ax.add_artist(human_goal)
+                human_start = mlines.Line2D([human.get_start_position()[0]], [human.get_start_position()[1]],
+                                            color=human_colors[i],
+                                            marker='o', linestyle='None', markersize=15)
+                ax.add_artist(human_start)
+
+            robot_start = mlines.Line2D([self.robot.get_start_position()[0]], [self.robot.get_start_position()[1]],
+                                        color=robot_color,
+                                        marker='o', linestyle='None', markersize=8)
+            ax.add_artist(robot_start)
+
+            robot_goal = mlines.Line2D([self.robot.get_goal_position()[0]], [self.robot.get_goal_position()[1]],
+                                        color=robot_color,
+                                        marker='o', linestyle='None', markersize=8)
+            ax.add_artist(robot_goal)
+
+            if output_file is not None:
+                plt.savefig(output_file)
+                plt.close()
+
+            else:
+                plt.show()
+
         elif mode == 'traj':
             fig, ax = plt.subplots(figsize=(7, 7))
             ax.tick_params(labelsize=16)
@@ -391,17 +528,32 @@ class CrowdSim(gym.Env):
             ax.set_xlabel('x(m)', fontsize=16)
             ax.set_ylabel('y(m)', fontsize=16)
 
+            # add human start positions and goals
+            human_colors = [cmap(i) for i in range(len(self.humans))]
+            for i in range(len(self.humans)):
+                human = self.humans[i]
+                human_goal = mlines.Line2D([human.get_goal_position()[0]], [human.get_goal_position()[1]],
+                                           color=human_colors[i],
+                                           marker='*', linestyle='None', markersize=15)
+                ax.add_artist(human_goal)
+                human_start = mlines.Line2D([human.get_start_position()[0]], [human.get_start_position()[1]],
+                                            color=human_colors[i],
+                                            marker='o', linestyle='None', markersize=15)
+                ax.add_artist(human_start)
+
             robot_positions = [self.states[i][0].position for i in range(len(self.states))]
             human_positions = [[self.states[i][1][j].position for j in range(len(self.humans))]
                                for i in range(len(self.states))]
+
             for k in range(len(self.states)):
                 if k % 4 == 0 or k == len(self.states) - 1:
-                    robot = plt.Circle(robot_positions[k], self.robot.radius, fill=True, color=robot_color)
+                    robot = plt.Circle(robot_positions[k], self.robot.radius, fill=False, color=robot_color)
                     humans = [plt.Circle(human_positions[k][i], self.humans[i].radius, fill=False, color=cmap(i))
                               for i in range(len(self.humans))]
                     ax.add_artist(robot)
                     for human in humans:
                         ax.add_artist(human)
+
                 # add time annotation
                 global_time = k * self.time_step
                 if global_time % 4 == 0 or k == len(self.states) - 1:
@@ -410,7 +562,7 @@ class CrowdSim(gym.Env):
                                       '{:.1f}'.format(global_time),
                                       color='black', fontsize=14) for i in range(self.human_num + 1)]
                     for time in times:
-                        ax.add_artist(time)
+                       ax.add_artist(time)
                 if k != 0:
                     nav_direction = plt.Line2D((self.states[k - 1][0].px, self.states[k][0].px),
                                                (self.states[k - 1][0].py, self.states[k][0].py),
@@ -432,11 +584,28 @@ class CrowdSim(gym.Env):
             ax.set_xlabel('x(m)', fontsize=14)
             ax.set_ylabel('y(m)', fontsize=14)
 
+            # add human start positions and goals
+            human_colors = [cmap(i) for i in range(len(self.humans))]
+            for i in range(len(self.humans)):
+                human = self.humans[i]
+                human_goal = mlines.Line2D([human.get_goal_position()[0]], [human.get_goal_position()[1]],
+                                           color=human_colors[i],
+                                           marker='*', linestyle='None', markersize=8)
+                ax.add_artist(human_goal)
+                human_start = mlines.Line2D([human.get_start_position()[0]], [human.get_start_position()[1]],
+                                            color=human_colors[i],
+                                            marker='o', linestyle='None', markersize=8)
+                ax.add_artist(human_start)
+            # add robot start position
+            robot_start = mlines.Line2D([self.robot.get_start_position()[0]], [self.robot.get_start_position()[1]],
+                                            color= robot_color,
+                                            marker='o', linestyle='None', markersize=8)
+            ax.add_artist(robot_start)
             # add robot and its goal
             robot_positions = [state[0].position for state in self.states]
-            goal = mlines.Line2D([0], [self.circle_radius], color=goal_color, marker='*', linestyle='None',
+            goal = mlines.Line2D([0], [self.circle_radius], color=robot_color, marker='*', linestyle='None',
                                  markersize=15, label='Goal')
-            robot = plt.Circle(robot_positions[0], self.robot.radius, fill=True, color=robot_color)
+            robot = plt.Circle(robot_positions[0], self.robot.radius, fill=False, color=robot_color)
             # sensor_range = plt.Circle(robot_positions[0], self.robot_sensor_range, fill=False, ls='dashed')
             ax.add_artist(robot)
             ax.add_artist(goal)
@@ -444,7 +613,7 @@ class CrowdSim(gym.Env):
 
             # add humans and their numbers
             human_positions = [[state[1][j].position for j in range(len(self.humans))] for state in self.states]
-            humans = [plt.Circle(human_positions[0][i], self.humans[i].radius, fill=False)
+            humans = [plt.Circle(human_positions[0][i], self.humans[i].radius, fill=False, color = cmap(i))
                       for i in range(len(self.humans))]
 
             # disable showing human numbers
@@ -483,8 +652,12 @@ class CrowdSim(gym.Env):
                                              agent_state.py + radius * np.sin(theta)))
                     orientation.append(direction)
                 orientations.append(orientation)
-            arrows = [patches.FancyArrowPatch(*orientation[0], color=arrow_color, arrowstyle=arrow_style)
-                      for orientation in orientations]
+                if i == 0:
+                    arrow_color = 'black'
+                    arrows = [patches.FancyArrowPatch(*orientation[0], color=arrow_color, arrowstyle=arrow_style)]
+                else:
+                    arrows.extend([patches.FancyArrowPatch(*orientation[0], color=human_colors[i-1], arrowstyle=arrow_style)])
+
             for arrow in arrows:
                 ax.add_artist(arrow)
             global_step = 0
@@ -494,16 +667,25 @@ class CrowdSim(gym.Env):
                 nonlocal arrows
                 global_step = frame_num
                 robot.center = robot_positions[frame_num]
+
                 for i, human in enumerate(humans):
                     human.center = human_positions[frame_num][i]
                     if display_numbers:
                         human_numbers[i].set_position((human.center[0] - x_offset, human.center[1] + y_offset))
-                    for arrow in arrows:
-                        arrow.remove()
-                    arrows = [patches.FancyArrowPatch(*orientation[frame_num], color=arrow_color,
-                                                      arrowstyle=arrow_style) for orientation in orientations]
-                    for arrow in arrows:
-                        ax.add_artist(arrow)
+                for arrow in arrows:
+                    arrow.remove()
+
+                for i in range(self.human_num + 1):
+                    orientation = orientations[i]
+                    if i == 0:
+                        arrows = [patches.FancyArrowPatch(*orientation[frame_num], color='black',
+                                                  arrowstyle=arrow_style)]
+                    else:
+                        arrows.extend([patches.FancyArrowPatch(*orientation[frame_num], color=cmap(i-1),
+                                                  arrowstyle=arrow_style)])
+
+                for arrow in arrows:
+                    ax.add_artist(arrow)
                     # if hasattr(self.robot.policy, 'get_attention_weights'):
                     #     attention_scores[i].set_text('human {}: {:.2f}'.format(i, self.attention_weights[frame_num][i]))
 

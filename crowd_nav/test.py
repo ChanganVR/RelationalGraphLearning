@@ -53,10 +53,13 @@ def main(args):
 
     # configure environment
     env_config = config.EnvConfig(args.debug)
+    env_config.env.test_size = 100
     if args.human_num is not None:
         env_config.sim.human_num = args.human_num
+
     env = gym.make('CrowdSim-v0')
     env.configure(env_config)
+
     if args.square:
         env.test_scenario = 'square_crossing'
     if args.circle:
@@ -78,22 +81,29 @@ def main(args):
 
     policy.set_env(env)
     robot.print_info()
+
     if args.visualize:
+        rewards = []
         ob = env.reset(args.phase, args.test_case)
         done = False
         last_pos = np.array(robot.get_position())
         while not done:
             action = robot.act(ob)
-            ob, _, done, info = env.step(action)
+            ob, _, done, info = env.step(actiofn)
+            rewards.append(_)
             current_pos = np.array(robot.get_position())
             logging.debug('Speed: %.2f', np.linalg.norm(current_pos - last_pos) / robot.time_step)
             last_pos = current_pos
+        gamma = 0.9
+        cumulative_reward = sum([pow(gamma, t * robot.time_step * robot.v_pref)
+             * reward for t, reward in enumerate(rewards)])
+
         if args.traj:
             env.render('traj', args.video_file)
         else:
             env.render('video', args.video_file)
 
-        logging.info('It takes %.2f seconds to finish. Final status is %s', env.global_time, info)
+        logging.info('It takes %.2f seconds to finish. Final status is %s, cumulative_reward is %f', env.global_time, info, cumulative_reward)
         if robot.visible and info == 'reach goal':
             human_times = env.get_human_times()
             logging.info('Average time for humans to reach goal: %.2f', sum(human_times) / len(human_times))

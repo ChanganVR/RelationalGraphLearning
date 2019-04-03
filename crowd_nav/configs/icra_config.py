@@ -6,8 +6,8 @@ class EnvConfig(object):
     env = Config()
     env.time_limit = 25
     env.time_step = 0.25
-    env.val_size = 100
-    env.test_size = 500
+    env.val_size = 10
+    env.test_size = 10
     env.randomize_attributes = False
     env.robot_sensor_range = 5
 
@@ -18,13 +18,15 @@ class EnvConfig(object):
     reward.discomfort_penalty_factor = 0.5
 
     sim = Config()
-    sim.train_val_scenario = 'square_crossing'
-    sim.test_scenario = 'square_crossing'
-    sim.square_width = 40
+    sim.train_val_scenario = 'group_circle_crossing'
+    sim.test_scenario = 'group_circle_crossing'
+    sim.square_width = 10
     sim.circle_radius = 4
+    sim.group_num = 2
+    sim.group_size = 3
     sim.human_num = 5
-    sim.nonstop_human = False
-    sim.centralized_planning = True
+    sim.nonstop_human = True
+    sim.centralized_planning = False
 
     humans = Config()
     humans.visible = True
@@ -92,15 +94,16 @@ class PolicyConfig(object):
     gcn = Config()
     gcn.multiagent_training = True
 
-    gcn.num_layer = 2
+    gcn.num_layer = 1
     gcn.X_dim = 32
     gcn.wr_dims = [64, gcn.X_dim]
     gcn.wh_dims = [64, gcn.X_dim]
     gcn.final_state_dim = 64
     gcn.gcn2_w1_dim = 128
     gcn.planning_dims = [150, 100, 100, 1]
-    gcn.similarity_function = 'embedded_gaussian'
-    gcn.update_edge = True
+    gcn.similarity_function = 'equal_attention'
+    #gcn.similarity_function = 'gaussian'
+    gcn.update_edge = False
 
 
     def __init__(self, debug=False):
@@ -112,22 +115,24 @@ class TrainConfig(object):
     trainer.batch_size = 100
 
     imitation_learning = Config()
-    imitation_learning.il_episodes = 3000
+    imitation_learning.il_episodes = 20
     imitation_learning.il_policy = 'orca'
     imitation_learning.il_epochs = 50
-    imitation_learning.il_learning_rate = 0.001
+    imitation_learning.il_learning_rate = 0.01
     imitation_learning.safety_space = 0.15
 
     train = Config()
+    train.rl_train_epochs = 100
     train.rl_learning_rate = 0.001
     # number of batches to train at the end of training episode
     train.train_batches = 100
     # training episodes in outer loop
-    train.train_episodes = 10000
+    train.train_episodes = 20
+    #train.train_episodes = 10000
     # number of episodes sampled in one training episode
     train.sample_episodes = 1
     train.target_update_interval = 50
-    train.evaluation_interval = 1000
+    train.evaluation_interval = train.train_episodes
     # the memory pool can roughly store 2K episodes, total size = episodes * 50
     train.capacity = 100000
     train.epsilon_start = 0.5
