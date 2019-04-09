@@ -39,7 +39,7 @@ class Explorer(object):
             for i in range(k):
                 ob = self.env.reset(phase)
                 if save_scene_dir is not None:
-                    self.env.render('scene', os.path.join(save_scene_dir, 'il' + str(imitation_learning) + phase + '_' + str(i) + '.jpg'))
+                    self.env.render('scene', os.path.join(save_scene_dir, 'il' + str(imitation_learning) + phase + '_' + str(self.env.case_counter[phase]) + '.jpg'))
 
                 done = False
                 states = []

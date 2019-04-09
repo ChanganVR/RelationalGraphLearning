@@ -26,6 +26,7 @@ class ValueNetwork(nn.Module):
         self.w_r = mlp(self_state_dim, wr_dims, last_relu=True)
         self.w_h = mlp(human_state_dim, wh_dims, last_relu=True)
 
+
         if self.similarity_function == 'embedded_gaussian':
             self.w_a = torch.nn.Parameter(torch.randn(self.X_dim, self.X_dim))
             self.w_a2 = torch.nn.Parameter(torch.randn(gcn2_w1_dim, gcn2_w1_dim))
@@ -98,6 +99,7 @@ class ValueNetwork(nn.Module):
         self_state_embedings = self.w_r(self_state)
         human_state_embedings = self.w_h(human_states)
         X = torch.cat([self_state_embedings.unsqueeze(1), human_state_embedings], dim=1)
+
 
         # compute matrix A
         normalized_A = self.compute_similarity_matrix(X)

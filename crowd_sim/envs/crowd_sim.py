@@ -65,7 +65,7 @@ class CrowdSim(gym.Env):
         self.discomfort_dist = config.reward.discomfort_dist
         self.discomfort_penalty_factor = config.reward.discomfort_penalty_factor
         self.case_capacity = {'train': np.iinfo(np.uint32).max - 2000, 'val': 1000, 'test': 1000}
-        self.case_size = {'train': np.iinfo(np.uint32).max - 2000, 'val': config.env.val_size,
+        self.case_size = {'train': config.env.train_size, 'val': config.env.val_size,
                           'test': config.env.test_size}
         self.train_val_scenario = config.sim.train_val_scenario
         self.test_scenario = config.sim.test_scenario

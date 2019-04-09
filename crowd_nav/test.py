@@ -31,11 +31,12 @@ def main(args):
                 model_weights = os.path.join(args.model_dir, 'rl_model.pth')
             logging.info('Loaded RL weights')
         else:
-            model_weights = os.path.join(args.model_dir, 'best_val.pth')
+            model_weights = os.path.join(args.model_dir, 'rl_model.pth')
             logging.info('Loaded RL weights with best VAL')
 
     else:
         config_file = args.config
+
     spec = importlib.util.spec_from_file_location('config', config_file)
     if spec is None:
         parser.error('Config file not found.')
@@ -53,7 +54,7 @@ def main(args):
 
     # configure environment
     env_config = config.EnvConfig(args.debug)
-    env_config.env.test_size = 100
+    env_config.env.test_size = 2500
     if args.human_num is not None:
         env_config.sim.human_num = args.human_num
 
@@ -101,6 +102,7 @@ def main(args):
         if args.traj:
             env.render('traj', args.video_file)
         else:
+            #args.video_file = args.video_file + '_' + str(args.test_case) + '.mp4'
             env.render('video', args.video_file)
 
         logging.info('It takes %.2f seconds to finish. Final status is %s, cumulative_reward is %f', env.global_time, info, cumulative_reward)
