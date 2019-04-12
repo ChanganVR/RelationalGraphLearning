@@ -53,6 +53,8 @@ class CrowdSim(gym.Env):
         self.action_values = None
         self.attention_weights = None
         self.As = None
+        self.Xs = None
+        self.feats = None
 
     def configure(self, config):
         self.config = config
@@ -136,7 +138,7 @@ class CrowdSim(gym.Env):
                 if not collide:
                     break
             while True:
-                gx = np.random.random() * self.square_width * 0.5 * -sign
+                gx = np.random.random() * self.square_width * 0.5 * - sign
                 gy = (np.random.random() - 0.5) * self.square_width
                 collide = False
                 for agent in [self.robot] + self.humans:
@@ -153,6 +155,7 @@ class CrowdSim(gym.Env):
 
         if self.current_scenario == 'group_circle_crossing':
             circle_radius = self.circle_radius
+            #circle_radius = 8
             door_distance = circle_radius * 1
             human = group[0]
 
@@ -174,7 +177,7 @@ class CrowdSim(gym.Env):
                         sign = -1
                     else:
                         sign = 1
-                    px_noise = np.random.random() *2
+                    px_noise = np.random.random() * 2
 
                     ex = (self.robot.get_start_position()[0] + sign *( 3 + px_noise ))
                     if sign == 1:
@@ -303,6 +306,10 @@ class CrowdSim(gym.Env):
             self.attention_weights = list()
         if hasattr(self.robot.policy, 'get_matrix_A'):
             self.As = list()
+        if hasattr(self.robot.policy, 'get_feat'):
+            self.feats = list()
+        if hasattr(self.robot.policy, 'get_X'):
+            self.Xs = list()
 
         # get current observation
         if self.robot.sensor == 'coordinates':
@@ -402,7 +409,10 @@ class CrowdSim(gym.Env):
                 self.attention_weights.append(self.robot.policy.get_attention_weights())
             if hasattr(self.robot.policy, 'get_matrix_A'):
                 self.As.append(self.robot.policy.get_matrix_A())
-
+            if hasattr(self.robot.policy, 'get_feat'):
+                self.feats.append(self.robot.policy.get_feat())
+            if hasattr(self.robot.policy, 'get_X'):
+                self.Xs.append(self.robot.policy.get_X())
             # update all agents
             self.robot.step(action)
             for human, action in zip(self.humans, human_actions):
@@ -600,10 +610,11 @@ class CrowdSim(gym.Env):
             robot_start = mlines.Line2D([self.robot.get_start_position()[0]], [self.robot.get_start_position()[1]],
                                             color= robot_color,
                                             marker='o', linestyle='None', markersize=8)
+            robot_start_position = [self.robot.get_start_position()[0], self.robot.get_start_position()[1]]
             ax.add_artist(robot_start)
             # add robot and its goal
             robot_positions = [state[0].position for state in self.states]
-            goal = mlines.Line2D([0], [self.circle_radius], color=robot_color, marker='*', linestyle='None',
+            goal = mlines.Line2D([self.robot.get_goal_position()[0]], [self.robot.get_goal_position()[1]], color=robot_color, marker='*', linestyle='None',
                                  markersize=15, label='Goal')
             robot = plt.Circle(robot_positions[0], self.robot.radius, fill=False, color=robot_color)
             # sensor_range = plt.Circle(robot_positions[0], self.robot_sensor_range, fill=False, ls='dashed')
@@ -719,15 +730,28 @@ class CrowdSim(gym.Env):
 
             def print_matrix_A():
                 with np.printoptions(precision=3, suppress=True):
+                    print('A is: ')
                     print(self.As[global_step])
+            def print_feat():
+                with np.printoptions(precision=3, suppress=True):
+                    print('feat is: ')
+                    print(self.feats[global_step])
+            def print_X():
+                with np.printoptions(precision=3, suppress=True):
+                    print('X is: ')
+                    print(self.Xs[global_step])
 
             def on_click(event):
                 if anim.running:
                     anim.event_source.stop()
                     if hasattr(self.robot.policy, 'get_matrix_A'):
                         print_matrix_A()
-                    # if hasattr(self.robot.policy, 'action_values'):
-                    #     plot_value_heatmap()
+                    if hasattr(self.robot.policy, 'get_feat'):
+                        print_feat()
+                    if hasattr(self.robot.policy, 'get_X'):
+                        print_X()
+                    #if hasattr(self.robot.policy, 'action_values'):
+                    #    plot_value_heatmap()
                 else:
                     anim.event_source.start()
                 anim.running ^= True

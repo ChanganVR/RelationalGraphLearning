@@ -25,13 +25,13 @@ def main(args):
             model_weights = os.path.join(args.model_dir, 'il_model.pth')
             logging.info('Loaded IL weights')
         elif args.rl:
-            if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model.pth')):
+            if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model/cs/vml4/shah/CrowdNavExt/crowd_nav/data/409/testgeneralization/embedded_gaussian.pth')):
                 model_weights = os.path.join(args.model_dir, 'resumed_rl_model.pth')
             else:
                 model_weights = os.path.join(args.model_dir, 'rl_model.pth')
             logging.info('Loaded RL weights')
         else:
-            model_weights = os.path.join(args.model_dir, 'rl_model.pth')
+            model_weights = os.path.join(args.model_dir, 'best_val.pth')
             logging.info('Loaded RL weights with best VAL')
 
     else:
@@ -54,7 +54,7 @@ def main(args):
 
     # configure environment
     env_config = config.EnvConfig(args.debug)
-    env_config.env.test_size = 2500
+
     if args.human_num is not None:
         env_config.sim.human_num = args.human_num
 
@@ -102,7 +102,13 @@ def main(args):
         if args.traj:
             env.render('traj', args.video_file)
         else:
-            #args.video_file = args.video_file + '_' + str(args.test_case) + '.mp4'
+            ''' 
+            if args.policy == 'gcn':
+                args.video_file = args.video_file + args.policy + '_' + policy_config.gcn.similarity_function
+            else:
+                args.video_file = args.video_file + args.policy
+            args.video_file = args.video_file + '_' + str(args.test_case) + '.mp4'
+            '''
             env.render('video', args.video_file)
 
         logging.info('It takes %.2f seconds to finish. Final status is %s, cumulative_reward is %f', env.global_time, info, cumulative_reward)

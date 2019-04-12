@@ -100,17 +100,17 @@ class PolicyConfig(object):
     gcn = Config()
     gcn.multiagent_training = True
 
-    gcn.num_layer = 2
-    gcn.X_dim = 6
-    gcn.wr_dims = [32, gcn.X_dim]
-    gcn.wh_dims = [32, gcn.X_dim]
-    gcn.final_state_dim = 8
-    gcn.gcn2_w1_dim = 8
+    gcn.num_layer = 1
+    gcn.X_dim = 8
+    gcn.wr_dims = [gcn.X_dim * 3, gcn.X_dim]
+    gcn.wh_dims = [gcn.X_dim * 3, gcn.X_dim]
+    gcn.final_state_dim = gcn.X_dim
+    gcn.gcn2_w1_dim = gcn.X_dim
     gcn.planning_dims = [32, 1]
     #gcn.planning_dims = [150, 100, 100, 1]
     #gcn.similarity_function = 'equal_attention'
-    gcn.similarity_function = 'gaussian'
-    #gcn.similarity_function = 'diagonal'
+    #gcn.similarity_function = 'gaussian'
+    gcn.similarity_function = 'diagonal'
     gcn.update_edge = False
 
 

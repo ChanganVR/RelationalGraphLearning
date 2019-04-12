@@ -17,6 +17,8 @@ class Explorer(object):
         self.target_model = None
 
     def update_target_model(self, target_model):
+        print('he')
+        print(target_model)
         self.target_model = copy.deepcopy(target_model)
 
     # @profile
