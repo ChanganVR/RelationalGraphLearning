@@ -3,6 +3,9 @@ import argparse
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
+sns.set(style='darkgrid')
 
 
 def running_mean(x, n):
@@ -20,7 +23,7 @@ def main():
     parser.add_argument('--plot_train', default=True, action='store_true')
     parser.add_argument('--plot_val', default=False, action='store_true')
     parser.add_argument('--plot_all', default=False, action='store_true')
-    parser.add_argument('--window_size', type=int, default=200)
+    parser.add_argument('--window_size', type=int, default=1)
     args = parser.parse_args()
 
     models = []
@@ -140,8 +143,14 @@ def main():
             if ax4 is None:
                 _, ax4 = plt.subplots()
             if args.plot_train:
-                ax4.plot(range(len(train_reward_smooth)), train_reward_smooth)
-                ax4_legends.append(models[i])
+                # ax4.plot(range(len(train_reward_smooth)), train_reward_smooth)
+                # ax4_legends.append(models[i])
+                indices = []
+                for j in range(len(train_reward_smooth)):
+                    indices.append(j//50)
+                df = pd.DataFrame(data={models[i]: train_reward_smooth, 'step': indices})
+                sns.lineplot(x="step", y=models[i], data=df, legend='full')
+
             if args.plot_val:
                 ax4.plot(val_episode, val_reward)
                 ax4_legends.append(models[i])
@@ -161,8 +170,8 @@ def main():
         if args.plot_reward:
             # ax4.legend(ax4_legends, loc='center left', bbox_to_anchor=(1, 0.5))
             ax4.legend(ax4_legends)
-            ax4.set_xlabel('Episodes')
-            ax4.set_ylabel('Reward')
+            # ax4.set_xlabel('Episodes')
+            # ax4.set_ylabel('Reward')
             plt.tick_params(axis='both', which='major')
             plt.subplots_adjust(left=0.15, right=0.9, top=0.9, bottom=0.125)
             # ax4.set_xlabel('xlabel', fontsize=18)

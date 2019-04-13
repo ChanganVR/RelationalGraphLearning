@@ -13,6 +13,7 @@ class ValueNetwork(nn.Module):
                  gcn2_w1_dim, planning_dims, similarity_function, update_edge):
         super().__init__()
         # design choice
+        self.residual_connection = True
 
         # 'gaussian', 'embedded_gaussian', 'cosine', 'cosine_softmax', 'concatenation'
         self.similarity_function = similarity_function
@@ -108,12 +109,18 @@ class ValueNetwork(nn.Module):
             feat = h1[:, 0, :]
         else:
             # compute h1 and h2
-            h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1))
+            if not self.residual_connection:
+                h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1))
+            else:
+                h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1) + X)
             if self.update_edge:
                 normalized_A2 = self.compute_similarity_matrix(h1)
             else:
                 normalized_A2 = normalized_A
-            h2 = relu(torch.matmul(torch.matmul(normalized_A2, h1), self.w2))
+            if not self.residual_connection:
+                h2 = relu(torch.matmul(torch.matmul(normalized_A2, h1), self.w2))
+            else:
+                h2 = relu(torch.matmul(torch.matmul(normalized_A2, h1), self.w2) + h1)
             feat = h2[:, 0, :]
 
         # do planning using only the final layer feature of the agent

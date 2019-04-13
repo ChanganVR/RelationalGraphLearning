@@ -22,6 +22,7 @@ setup(
         'scipy',
         'torch',
         'torchvision',
+        'seaborn'
     ],
     extras_require={
         'test': [
