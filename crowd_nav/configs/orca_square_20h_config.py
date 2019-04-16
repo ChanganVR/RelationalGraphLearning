@@ -99,7 +99,8 @@ class PolicyConfig(object):
     gcn.gcn2_w1_dim = gcn.X_dim
     gcn.planning_dims = [150, 100, 100, 1]
     gcn.similarity_function = 'gaussian'
-    gcn.update_edge = False
+    gcn.layerwise_graph = False
+    gcn.skip_connection = False
 
     def __init__(self, debug=False):
         pass
