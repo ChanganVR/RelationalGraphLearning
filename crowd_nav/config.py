@@ -106,7 +106,7 @@ class TrainConfig(object):
     imitation_learning.il_episodes = 2000
     imitation_learning.il_policy = 'orca'
     imitation_learning.il_epochs = 50
-    imitation_learning.il_learning_rate = 0.01
+    imitation_learning.il_learning_rate = 0.001
     imitation_learning.safety_space = 0.15
 
     train = Config()
