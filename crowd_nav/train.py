@@ -39,7 +39,7 @@ def main(args):
         search_pairs = {r"gcn.num_layer = \d": "gcn.num_layer = {}".format(args.layers),
                         r"gcn.similarity_function = '\w*'": "gcn.similarity_function = '{}'".format(args.sim_func),
                         r"gcn.layerwise_graph = \w*": "gcn.layerwise_graph = {}".format(args.layerwise_graph),
-                        r"gcn.skip_connection = \w*": "gcn.skip_connection = {}".format(args.layerwise_graph)}
+                        r"gcn.skip_connection = \w*": "gcn.skip_connection = {}".format(args.skip_connection)}
         for find, replace in search_pairs.items():
             config_text = re.sub(find, replace, config_text)
 
@@ -206,7 +206,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/icra_config.py')
+    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
