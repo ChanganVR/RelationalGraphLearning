@@ -28,8 +28,8 @@ class EnvConfig(object):
 
     sim.square_width = 10
     sim.circle_radius = 4
-    sim.group_num = 2
-    sim.group_size = 3
+    sim.group_num = 1
+    sim.group_size = 1
     sim.human_num = 5
     sim.nonstop_human = True
     sim.centralized_planning = False
@@ -94,23 +94,23 @@ class PolicyConfig(object):
     sarl.attention_dims = [100, 100, 1]
     sarl.mlp3_dims = [150, 100, 100, 1]
     sarl.multiagent_training = True
-    sarl.with_om = True
+    sarl.with_om = False
     sarl.with_global_state = True
 
     gcn = Config()
     gcn.multiagent_training = True
 
-    gcn.num_layer = 1
-    gcn.X_dim = 8
+    gcn.num_layer = 2
+    gcn.X_dim = 16
     gcn.wr_dims = [gcn.X_dim * 3, gcn.X_dim]
     gcn.wh_dims = [gcn.X_dim * 3, gcn.X_dim]
     gcn.final_state_dim = gcn.X_dim
     gcn.gcn2_w1_dim = gcn.X_dim
     gcn.planning_dims = [32, 1]
     #gcn.planning_dims = [150, 100, 100, 1]
-    #gcn.similarity_function = 'equal_attention'
+    gcn.similarity_function = 'equal_attention'
     #gcn.similarity_function = 'gaussian'
-    gcn.similarity_function = 'diagonal'
+    #gcn.similarity_function = 'diagonal'
     gcn.update_edge = False
 
 

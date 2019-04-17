@@ -25,7 +25,7 @@ def main(args):
             model_weights = os.path.join(args.model_dir, 'il_model.pth')
             logging.info('Loaded IL weights')
         elif args.rl:
-            if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model/cs/vml4/shah/CrowdNavExt/crowd_nav/data/409/testgeneralization/embedded_gaussian.pth')):
+            if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model.pth')):
                 model_weights = os.path.join(args.model_dir, 'resumed_rl_model.pth')
             else:
                 model_weights = os.path.join(args.model_dir, 'rl_model.pth')
@@ -57,7 +57,10 @@ def main(args):
 
     if args.human_num is not None:
         env_config.sim.human_num = args.human_num
-
+    if args.group_num is not None:
+        env_config.sim.group_num = args.group_num
+    if args.group_size is not None:
+        env_config.sim.group_size = args.group_size
     env = gym.make('CrowdSim-v0')
     env.configure(env_config)
 
@@ -67,6 +70,12 @@ def main(args):
         env.test_scenario = 'circle_crossing'
     robot = Robot(env_config, 'robot')
     robot.set_policy(policy)
+
+    train_config = config.TrainConfig(args.debug)
+    epsilon_end = train_config.train.epsilon_end
+    if not isinstance(robot.policy, ORCA):
+        robot.policy.set_epsilon(epsilon_end)
+
     env.set_robot(robot)
     explorer = Explorer(env, robot, device, gamma=0.9)
 
@@ -75,9 +84,9 @@ def main(args):
     # set safety space for ORCA in non-cooperative simulation
     if isinstance(robot.policy, ORCA):
         if robot.visible:
-            robot.policy.safety_space = 0
+            robot.policy.safety_space = args.safety_space
         else:
-            robot.policy.safety_space = 0
+            robot.policy.safety_space = args.safety_space
         logging.info('ORCA agent buffer: %f', robot.policy.safety_space)
 
     policy.set_env(env)
@@ -102,7 +111,7 @@ def main(args):
         if args.traj:
             env.render('traj', args.video_file)
         else:
-            ''' 
+            '''
             if args.policy == 'gcn':
                 args.video_file = args.video_file + args.policy + '_' + policy_config.gcn.similarity_function
             else:
@@ -132,10 +141,14 @@ if __name__ == '__main__':
     parser.add_argument('--test_case', type=int, default=None)
     parser.add_argument('--square', default=False, action='store_true')
     parser.add_argument('--circle', default=False, action='store_true')
-    parser.add_argument('--video_file', type=str, default=None)
+    parser.add_argument('--video_file', type=str, default = None)
     parser.add_argument('--traj', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--human_num', type=int, default=None)
+    parser.add_argument('--group_size', type=int, default=None)
+    parser.add_argument('--group_num', type=int, default=None)
+    parser.add_argument('--safety_space', type=float, default=None)
+
     sys_args = parser.parse_args()
 
     main(sys_args)
