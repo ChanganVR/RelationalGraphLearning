@@ -31,6 +31,7 @@ def main(args):
                 make_new_dir = False
     if make_new_dir:
         os.makedirs(args.output_dir)
+        print(args.config)
         shutil.copy(args.config, os.path.join(args.output_dir, 'config.py'))
 
         # insert the arguments from command line to the config file
@@ -217,7 +218,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
+    parser.add_argument('--config', type=str, default='configs/icra_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)

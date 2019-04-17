@@ -11,8 +11,11 @@ class EnvConfig(BaseEnvConfig):
         self.sim.human_num = 5
         self.sim.group_num = 2
         self.sim.group_size = 1
-        self.sim.train_size = 2500
-        #self.sim.train_size = np.iinfo(np.uint32).max - 2000
+
+        print('check the icra_config')
+        self.env.train_size = 2500
+        self.env.val_size = 200
+        #self.env.train_size = np.iinfo(np.uint32).max - 2000
 
 class PolicyConfig(BasePolicyConfig):
     def __init__(self, debug=False):
