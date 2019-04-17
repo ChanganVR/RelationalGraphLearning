@@ -73,9 +73,10 @@ class CrowdSim(gym.Env):
         self.test_scenario = config.sim.test_scenario
         self.square_width = config.sim.square_width
         self.circle_radius = config.sim.circle_radius
-        self.human_num = config.sim.human_num
         self.group_num = config.sim.group_num
         self.group_size = config.sim.group_size
+        self.human_num = config.sim.human_num
+
         self.nonstop_human = config.sim.nonstop_human
         self.centralized_planning = config.sim.centralized_planning
         self.case_counter = {'train': 0, 'test': 0, 'val': 0}
@@ -150,28 +151,36 @@ class CrowdSim(gym.Env):
             human.set(px, py, gx, gy, 0, 0, 0)
         return human
 
-    def generate_group(self, group_size = 3):
+    def generate_group(self, group_size = 3, phase = 'train'):
         group = [Human(self.config, 'humans') for i in range(group_size)]
 
         if self.current_scenario == 'group_circle_crossing':
             circle_radius = self.circle_radius
-            #circle_radius = 8
-            door_distance = circle_radius * 1
             human = group[0]
+            door_distance = human.radius + self.discomfort_dist
 
             if self.count_el_pair % 2:
                 el_type = 'crossing'
             else:
-                el_type = 'perpendicular'
+                el_type = 'crossing'
 
-            def generate_entry_leave(circle_radius, type = 'crossing'):
-                angle = np.random.random() * np.pi * 2
+            def generate_entry_leave(circle_radius, phase, type = 'crossing'):
+                if phase == 'train' or phase == 'val':
+                    angle = np.random.random() * np.pi * (0.5) + np.pi * 0.5
+                else:
+                    angle = np.random.random() * np.pi * (0.5)
                 # add some noise to simulate all the possible cases robot could meet with human
+
                 if type == 'crossing':
+                    '''
                     px_noise = (np.random.random() - 0.5) * human.v_pref
                     py_noise = (np.random.random() - 0.5) * human.v_pref
                     ex = circle_radius * np.cos(angle) + px_noise
                     ey = circle_radius * np.sin(angle) + py_noise
+                    '''
+                    ex = circle_radius * np.cos(angle)
+                    ey = circle_radius * np.sin(angle)
+
                 else:
                     if np.random.random() > 0.5:
                         sign = -1
@@ -198,7 +207,7 @@ class CrowdSim(gym.Env):
                 return ex, ey, lx, ly
 
             while True:
-                ex, ey, lx, ly = generate_entry_leave(circle_radius, el_type)
+                ex, ey, lx, ly = generate_entry_leave(circle_radius, phase, el_type)
                 if len(self.entries) > 0:
                     for i, e in enumerate(self.entries):
                         l = self.leaves[i]
@@ -276,7 +285,7 @@ class CrowdSim(gym.Env):
                 self.count_el_pair = 0
                 for _ in range(group_num):
                     group_size = self.group_size
-                    self.humans.extend(self.generate_group(group_size))
+                    self.humans.extend(self.generate_group(group_size, phase))
                 self.human_num = len(self.humans)
             # case_counter is always between 0 and case_size[phase]
             self.case_counter[phase] = (self.case_counter[phase] + 1) % self.case_size[phase]
