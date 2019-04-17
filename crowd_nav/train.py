@@ -8,6 +8,7 @@ import torch
 import gym
 import copy
 import git
+import re
 from tensorboardX import SummaryWriter
 from crowd_sim.envs.utils.robot import Robot
 from crowd_nav.utils.trainer import Trainer
@@ -28,16 +29,30 @@ def main(args):
                 shutil.rmtree(args.output_dir)
             else:
                 make_new_dir = False
-                args.config = os.path.join(args.output_dir, args.config)
     if make_new_dir:
         os.makedirs(args.output_dir)
-        shutil.copy(args.config, args.output_dir)
+        shutil.copy(args.config, os.path.join(args.output_dir, 'config.py'))
+
+        # insert the arguments from command line to the config file
+        with open(os.path.join(args.output_dir, 'config.py'), 'r') as fo:
+            config_text = fo.read()
+        search_pairs = {r"gcn.num_layer = \d": "gcn.num_layer = {}".format(args.layers),
+                        r"gcn.similarity_function = '\w*'": "gcn.similarity_function = '{}'".format(args.sim_func),
+                        r"gcn.layerwise_graph = \w*": "gcn.layerwise_graph = {}".format(args.layerwise_graph),
+                        r"gcn.skip_connection = \w*": "gcn.skip_connection = {}".format(args.skip_connection)}
+        for find, replace in search_pairs.items():
+            config_text = re.sub(find, replace, config_text)
+
+        with open(os.path.join(args.output_dir, 'config.py'), 'w') as fo:
+            fo.write(config_text)
+
     if args.save_scene:
         save_scene_dir = os.path.join(args.output_dir, 'save_scene')
         os.makedirs(save_scene_dir)
     else:
         save_scene_dir = None
 
+    args.config = os.path.join(args.output_dir, 'config.py')
     log_file = os.path.join(args.output_dir, 'output.log')
     il_weight_file = os.path.join(args.output_dir, 'il_model.pth')
     rl_weight_file = os.path.join(args.output_dir, 'rl_model.pth')
@@ -202,7 +217,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/icra_config.py')
+    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
@@ -210,6 +225,13 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--save_scene', default = True, action = 'store_true' )
+
+    # arguments for GCN
+    parser.add_argument('--layers', type=int, default=2)
+    parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
+    parser.add_argument('--layerwise_graph', default=False, action='store_true')
+    parser.add_argument('--skip_connection', default=False, action='store_true')
+
     sys_args = parser.parse_args()
 
     main(sys_args)

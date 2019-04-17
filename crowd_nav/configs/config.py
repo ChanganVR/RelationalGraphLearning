@@ -1,15 +1,15 @@
 class Config(object):
-    pass
+    def __init__(self):
+        pass
 
 
-class EnvConfig(object):
+class BaseEnvConfig(object):
     env = Config()
     env.time_limit = 30
     env.time_step = 0.25
     env.val_size = 100
     env.test_size = 500
     env.randomize_attributes = False
-    # not used API
     env.robot_sensor_range = 5
 
     reward = Config()
@@ -29,7 +29,7 @@ class EnvConfig(object):
 
     humans = Config()
     humans.visible = True
-    humans.policy = 'socialforce'
+    humans.policy = 'orca'
     humans.radius = 0.3
     humans.v_pref = 1
     humans.sensor = 'coordinates'
@@ -47,7 +47,7 @@ class EnvConfig(object):
             self.env.test_size = 1
 
 
-class PolicyConfig(object):
+class BasePolicyConfig(object):
     rl = Config()
     rl.gamma = 0.9
 
@@ -59,7 +59,7 @@ class PolicyConfig(object):
     action_space = Config()
     action_space.kinematics = 'holonomic'
     action_space.speed_samples = 5
-    action_space.rotation_samples = 7
+    action_space.rotation_samples = 16
     action_space.sampling = 'exponential'
     action_space.query_env = True
 
@@ -87,18 +87,37 @@ class PolicyConfig(object):
     sarl.attention_dims = [100, 100, 1]
     sarl.mlp3_dims = [150, 100, 100, 1]
     sarl.multiagent_training = True
-    sarl.with_om = False
-    sarl.with_global_state = False
+    sarl.with_om = True
+    sarl.with_global_state = True
 
     gcn = Config()
     gcn.multiagent_training = True
     gcn.num_layer = 2
+    gcn.X_dim = 32
+    gcn.wr_dims = [64, gcn.X_dim]
+    gcn.wh_dims = [64, gcn.X_dim]
+    gcn.final_state_dim = gcn.X_dim
+    gcn.gcn2_w1_dim = gcn.X_dim
+    gcn.planning_dims = [150, 100, 100, 1]
+    gcn.similarity_function = 'gaussian'
+    gcn.layerwise_graph = False
+    gcn.skip_connection = False
+
+    '''
+    gcn.num_layer = 2
+    gcn.X_dim = 16
+    gcn.wr_dims = [gcn.X_dim * 3, gcn.X_dim]
+    gcn.wh_dims = [gcn.X_dim * 3, gcn.X_dim]
+    gcn.final_state_dim = gcn.X_dim
+    gcn.gcn2_w1_dim = gcn.X_dim
+    gcn.planning_dims = [32, 1]
+    '''
 
     def __init__(self, debug=False):
         pass
 
 
-class TrainConfig(object):
+class BaseTrainConfig(object):
     trainer = Config()
     trainer.batch_size = 100
 
@@ -106,7 +125,7 @@ class TrainConfig(object):
     imitation_learning.il_episodes = 2000
     imitation_learning.il_policy = 'orca'
     imitation_learning.il_epochs = 50
-    imitation_learning.il_learning_rate = 0.01
+    imitation_learning.il_learning_rate = 0.001
     imitation_learning.safety_space = 0.15
 
     train = Config()

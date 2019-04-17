@@ -10,7 +10,7 @@ from crowd_nav.policy.multi_human_rl import MultiHumanRL
 
 class ValueNetwork(nn.Module):
     def __init__(self, input_dim, self_state_dim, num_layer, X_dim, wr_dims, wh_dims, final_state_dim,
-                 gcn2_w1_dim, planning_dims, similarity_function, update_edge):
+                 gcn2_w1_dim, planning_dims, similarity_function, layerwise_graph, skip_connection):
         super().__init__()
         # design choice
 
@@ -22,7 +22,8 @@ class ValueNetwork(nn.Module):
         self.human_state_dim = human_state_dim
         self.num_layer = num_layer
         self.X_dim = X_dim
-        self.update_edge = update_edge
+        self.layerwise_graph = layerwise_graph
+        self.skip_connection = skip_connection
 
         self.w_r = mlp(self_state_dim, wr_dims, last_relu=True)
         self.w_h = mlp(human_state_dim, wh_dims, last_relu=True)
@@ -108,12 +109,18 @@ class ValueNetwork(nn.Module):
             feat = h1[:, 0, :]
         else:
             # compute h1 and h2
-            h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1))
-            if self.update_edge:
+            if not self.skip_connection:
+                h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1))
+            else:
+                h1 = relu(torch.matmul(torch.matmul(normalized_A, X), self.w1)) + X
+            if self.layerwise_graph:
                 normalized_A2 = self.compute_similarity_matrix(h1)
             else:
                 normalized_A2 = normalized_A
-            h2 = relu(torch.matmul(torch.matmul(normalized_A2, h1), self.w2))
+            if not self.skip_connection:
+                h2 = relu(torch.matmul(torch.matmul(normalized_A2, h1), self.w2))
+            else:
+                h2 = relu(torch.matmul(torch.matmul(normalized_A2, h1), self.w2)) + h1
             feat = h2[:, 0, :]
 
         # do planning using only the final layer feature of the agent
@@ -136,10 +143,12 @@ class GCN(MultiHumanRL):
         gcn2_w1_dim = config.gcn.gcn2_w1_dim
         planning_dims = config.gcn.planning_dims
         similarity_function = config.gcn.similarity_function
-        update_edge = config.gcn.update_edge
+        layerwise_graph = config.gcn.layerwise_graph
+        skip_connection = config.gcn.skip_connection
         self.set_common_parameters(config)
         self.model = ValueNetwork(self.input_dim(), self.self_state_dim, num_layer, X_dim, wr_dims, wh_dims,
-                                  final_state_dim, gcn2_w1_dim, planning_dims, similarity_function, update_edge)
+                                  final_state_dim, gcn2_w1_dim, planning_dims, similarity_function, layerwise_graph,
+                                  skip_connection)
         logging.info('self.model:{}'.format(self.model))
         logging.info('GCN layers: {}'.format(num_layer))
         logging.info('Policy: {}'.format(self.name))

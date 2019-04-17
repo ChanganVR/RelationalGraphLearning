@@ -430,31 +430,11 @@ class CrowdSim(gym.Env):
                     self.generate_human(human)
             self.global_time += self.time_step
 
-            # compute the observation
-            if self.robot.sensor == 'coordinates':
-                ob = self.compute_observation_for(self.robot)
-            elif self.robot.sensor == 'RGB':
-                raise NotImplementedError
-        else:
-            if self.robot.sensor == 'coordinates':
-                # ob = []
-                # for human, action in zip(self.humans, human_actions):
-                #     if norm((self.robot.px - human.px, self.robot.py - human.py)) < self.robot_sensor_range:
-                #         ob.append(human.get_next_observable_state(action))
-                #
-                # # if no human in the sensor range, choose the closest one
-                # if not ob:
-                #     distances = [norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans]
-                #     closest_human_index = np.argmin(distances)
-                #     ob.append(self.humans[closest_human_index].get_next_observable_state(action))
-                ob = []
-                distances = np.array(
-                    [norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans])
-                closest_indices = distances.argsort()[:10]
-                for index in closest_indices:
-                    ob.append(self.humans[index].get_next_observable_state(human_actions[index]))
-            elif self.robot.sensor == 'RGB':
-                raise NotImplementedError
+        # compute the observation
+        if self.robot.sensor == 'coordinates':
+            ob = self.compute_observation_for(self.robot)
+        elif self.robot.sensor == 'RGB':
+            raise NotImplementedError
 
         return ob, reward, done, info
 
@@ -471,10 +451,14 @@ class CrowdSim(gym.Env):
             #     closest_human_index = np.argmin(distances)
             #     ob.append(self.humans[closest_human_index].get_observable_state())
             ob = []
-            distances = np.array([norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans])
-            closest_indices = distances.argsort()[:10]
-            for index in closest_indices:
-                ob.append(self.humans[index].get_observable_state())
+            for human in self.humans:
+                ob.append(human.get_observable_state())
+
+            # # only select closest N humans
+            # distances = np.array([norm((self.robot.px - human.px, self.robot.py - human.py)) for human in self.humans])
+            # closest_indices = distances.argsort()[:10]
+            # for index in closest_indices:
+            #     ob.append(self.humans[index].get_observable_state())
         else:
             ob = [other_human.get_observable_state() for other_human in self.humans if other_human != agent]
             if self.robot.visible:
@@ -484,8 +468,7 @@ class CrowdSim(gym.Env):
     def render(self, mode='human', output_file=None):
         from matplotlib import animation
         import matplotlib.pyplot as plt
-
-        plt.rcParams['animation.ffmpeg_path'] = '/usr/bin/ffmpeg'
+        # plt.rcParams['animation.ffmpeg_path'] = '/usr/bin/ffmpeg'
 
         x_offset = 0.2
         y_offset = 0.4
@@ -738,13 +721,21 @@ class CrowdSim(gym.Env):
                 plt.show()
 
             def print_matrix_A():
+                # with np.printoptions(precision=3, suppress=True):
+                #     print(self.As[global_step])
+                h, w = self.As[global_step].shape
+                print('   ' + ' '.join(['{:>5}'.format(i-1) for i in range(w)]))
+                for i in range(h):
+                    print('{:<3}'.format(i-1) + ' '.join(['{:.3f}'.format(self.As[global_step][i][j]) for j in range(w)]))
                 with np.printoptions(precision=3, suppress=True):
                     print('A is: ')
                     print(self.As[global_step])
+
             def print_feat():
                 with np.printoptions(precision=3, suppress=True):
                     print('feat is: ')
                     print(self.feats[global_step])
+
             def print_X():
                 with np.printoptions(precision=3, suppress=True):
                     print('X is: ')
@@ -771,9 +762,9 @@ class CrowdSim(gym.Env):
 
             if output_file is not None:
                 # save as video
-                ffmpeg_writer = animation.writers['ffmpeg']
-                writer = ffmpeg_writer(fps=10, metadata=dict(artist='Me'), bitrate=1800)
-                anim.save(output_file, writer=writer)
+                ffmpeg_writer = animation.FFMpegWriter(fps=10, metadata=dict(artist='Me'), bitrate=1800)
+                # writer = ffmpeg_writer(fps=10, metadata=dict(artist='Me'), bitrate=1800)
+                anim.save(output_file, writer=ffmpeg_writer)
 
                 # save output file as gif if imagemagic is installed
                 # anim.save(output_file, writer='imagemagic', fps=12)

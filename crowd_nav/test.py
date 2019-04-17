@@ -20,7 +20,7 @@ def main(args):
     logging.info('Using device: %s', device)
 
     if args.model_dir is not None:
-        config_file = os.path.join(args.model_dir, args.config)
+        config_file = os.path.join(args.model_dir, 'config.py')
         if args.il:
             model_weights = os.path.join(args.model_dir, 'il_model.pth')
             logging.info('Loaded IL weights')
