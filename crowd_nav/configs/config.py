@@ -9,6 +9,7 @@ class BaseEnvConfig(object):
     env.time_step = 0.25
     env.val_size = 100
     env.test_size = 500
+    env.train_size = np.iinfo(np.uint32).max - 2000
     env.randomize_attributes = False
     env.robot_sensor_range = 5
 
@@ -24,6 +25,8 @@ class BaseEnvConfig(object):
     sim.square_width = 20
     sim.circle_radius = 5
     sim.human_num = 20
+    sim.group_num = 0
+    sim.group_size = 0
     sim.nonstop_human = False
     sim.centralized_planning = True
 
@@ -103,15 +106,6 @@ class BasePolicyConfig(object):
     gcn.layerwise_graph = False
     gcn.skip_connection = False
 
-    '''
-    gcn.num_layer = 2
-    gcn.X_dim = 16
-    gcn.wr_dims = [gcn.X_dim * 3, gcn.X_dim]
-    gcn.wh_dims = [gcn.X_dim * 3, gcn.X_dim]
-    gcn.final_state_dim = gcn.X_dim
-    gcn.gcn2_w1_dim = gcn.X_dim
-    gcn.planning_dims = [32, 1]
-    '''
 
     def __init__(self, debug=False):
         pass
@@ -129,6 +123,7 @@ class BaseTrainConfig(object):
     imitation_learning.safety_space = 0.15
 
     train = Config()
+    train.rl_train_epochs = 1
     train.rl_learning_rate = 0.001
     # number of batches to train at the end of training episode
     train.train_batches = 100

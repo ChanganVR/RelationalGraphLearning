@@ -111,13 +111,13 @@ def main(args):
         if args.traj:
             env.render('traj', args.video_file)
         else:
-            '''
-            if args.policy == 'gcn':
-                args.video_file = args.video_file + args.policy + '_' + policy_config.gcn.similarity_function
-            else:
-                args.video_file = args.video_file + args.policy
-            args.video_file = args.video_file + '_' + str(args.test_case) + '.mp4'
-            '''
+            if args.video_dir is not None:
+                if args.policy == 'gcn':
+                    args.video_file = os.path.join(args.video_dir, args.policy + '_' + policy_config.gcn.similarity_function)
+                else:
+                    args.video_file = os.path.join(args.video_file + args.policy)
+                args.video_file = args.video_file + '_' + str(args.test_case) + '.mp4'
+
             env.render('video', args.video_file)
 
         logging.info('It takes %.2f seconds to finish. Final status is %s, cumulative_reward is %f', env.global_time, info, cumulative_reward)
@@ -141,7 +141,8 @@ if __name__ == '__main__':
     parser.add_argument('--test_case', type=int, default=None)
     parser.add_argument('--square', default=False, action='store_true')
     parser.add_argument('--circle', default=False, action='store_true')
-    parser.add_argument('--video_file', type=str, default = None)
+    parser.add_argument('--video_file', type=str, default=None)
+    parser.add_argument('--video_dir', type=str, default=None)
     parser.add_argument('--traj', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--human_num', type=int, default=None)

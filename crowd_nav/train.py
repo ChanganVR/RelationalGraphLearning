@@ -91,6 +91,7 @@ def main(args):
     env.configure(env_config)
     robot = Robot(env_config, 'robot')
     env.set_robot(robot)
+    env.save_scene_dir = save_scene_dir
 
     # read training parameters
     train_config = config.TrainConfig(args.debug)
@@ -162,7 +163,7 @@ def main(args):
     # evaluate the model after imitation learning
     if episode % evaluation_interval == 0:
         logging.info('Evaluate the model instantly after imitation learning on the validation cases')
-        sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, save_scene_dir = save_scene_dir)
+        sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
         writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
         writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
         writer.add_scalar('val/time', time, episode // evaluation_interval)
@@ -181,26 +182,27 @@ def main(args):
             robot.policy.set_epsilon(epsilon)
 
             # sample k episodes into memory and optimize over the generated memory
-            sr, cr, time, reward = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True, episode=episode, epoch = e_id, save_scene_dir = save_scene_dir)
-            writer.add_scalar('train/success_rate', sr, episode + train_episodes * e_id )
-            writer.add_scalar('train/collision_rate', cr, episode + train_episodes * e_id )
-            writer.add_scalar('train/time', time, episode + train_episodes * e_id )
-            writer.add_scalar('train/reward', reward, episode + train_episodes * e_id )
+            sr, cr, time, reward = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True,
+                                                           episode=episode, epoch=e_id)
+            writer.add_scalar('train/success_rate', sr, episode + train_episodes * e_id)
+            writer.add_scalar('train/collision_rate', cr, episode + train_episodes * e_id)
+            writer.add_scalar('train/time', time, episode + train_episodes * e_id)
+            writer.add_scalar('train/reward', reward, episode + train_episodes * e_id)
 
             trainer.optimize_batch(train_batches)
             episode += 1
 
-            if (episode + train_episodes * e_id ) % target_update_interval == 0:
+            if (episode + train_episodes * e_id) % target_update_interval == 0:
                 explorer.update_target_model(model)
             # evaluate the model
-            if (episode + train_episodes * e_id ) % evaluation_interval == 0:
-                sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch = e_id)
+            if (episode + train_episodes * e_id) % evaluation_interval == 0:
+                sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
                 writer.add_scalar('val/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
                 writer.add_scalar('val/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
-                writer.add_scalar('val/time', time, (episode + train_episodes * e_id ) // evaluation_interval)
-                writer.add_scalar('val/reward', reward, (episode + train_episodes * e_id )// evaluation_interval)
+                writer.add_scalar('val/time', time, (episode + train_episodes * e_id) // evaluation_interval)
+                writer.add_scalar('val/reward', reward, (episode + train_episodes * e_id) // evaluation_interval)
 
-                if (episode + train_episodes * e_id)% checkpoint_interval == 0 and reward > best_val_reward:
+                if (episode + train_episodes * e_id) % checkpoint_interval == 0 and reward > best_val_reward:
                     best_val_reward = reward
                     best_val_model = copy.deepcopy(model.state_dict())
 
@@ -212,20 +214,20 @@ def main(args):
         model.load_state_dict(best_val_model)
         torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
         logging.info('Save the best val model with the reward: {}'.format(best_val_reward))
-    explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, epoch = e_id,  save_scene_dir = save_scene_dir)
+    explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, epoch=e_id)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/icra_config.py')
+    parser.add_argument('--config', type=str, default='configs/group_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
     parser.add_argument('--resume', default=False, action='store_true')
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
-    parser.add_argument('--save_scene', default = True, action = 'store_true' )
+    parser.add_argument('--save_scene', default=True, action='store_true')
 
     # arguments for GCN
     parser.add_argument('--layers', type=int, default=2)

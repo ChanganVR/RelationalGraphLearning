@@ -23,7 +23,7 @@ class Explorer(object):
 
     # @profile
     def run_k_episodes(self, k, phase, update_memory=False, imitation_learning=False, episode=None, epoch= None,
-                       print_failure=False, save_scene_dir = None):
+                       print_failure=False):
         self.robot.policy.set_phase(phase)
         success_times = []
         collision_times = []
@@ -40,8 +40,11 @@ class Explorer(object):
         with tqdm(total=k) as pbar:
             for i in range(k):
                 ob = self.env.reset(phase)
-                if save_scene_dir is not None:
-                    self.env.render('scene', os.path.join(save_scene_dir, 'il' + str(imitation_learning) + phase + '_' + str(self.env.case_counter[phase]) + '.jpg'))
+
+                if self.env.save_scene_dir is not None:
+                    save_scene_file = os.path.join(self.env.save_scene_dir, 'il' + str(imitation_learning) + '_' + phase + '_' + str(self.env.case_counter[phase]) + '.jpg')
+                    if not os.path.isfile(save_scene_file):
+                        self.env.render('scene', save_scene_file)
 
                 done = False
                 states = []

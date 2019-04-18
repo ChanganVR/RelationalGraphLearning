@@ -45,6 +45,8 @@ class CrowdSim(gym.Env):
         self.square_width = None
         self.circle_radius = None
         self.human_num = None
+        self.group_num = None
+        self.group_size = None
         self.nonstop_human = None
         self.centralized_planning = None
         self.centralized_planner = None
@@ -55,6 +57,7 @@ class CrowdSim(gym.Env):
         self.As = None
         self.Xs = None
         self.feats = None
+        self.save_scene_dir = None
 
     def configure(self, config):
         self.config = config
