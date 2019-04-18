@@ -1,8 +1,8 @@
+import os
 import logging
 import copy
 import torch
 from tqdm import tqdm
-import os
 from crowd_sim.envs.utils.info import *
 
 
@@ -17,8 +17,6 @@ class Explorer(object):
         self.target_model = None
 
     def update_target_model(self, target_model):
-        print('he')
-        print(target_model)
         self.target_model = copy.deepcopy(target_model)
 
     # @profile

@@ -31,7 +31,6 @@ def main(args):
                 make_new_dir = False
     if make_new_dir:
         os.makedirs(args.output_dir)
-        print(args.config)
         shutil.copy(args.config, os.path.join(args.output_dir, 'config.py'))
 
         # insert the arguments from command line to the config file
