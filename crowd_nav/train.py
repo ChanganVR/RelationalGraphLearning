@@ -36,10 +36,12 @@ def main(args):
         # insert the arguments from command line to the config file
         with open(os.path.join(args.output_dir, 'config.py'), 'r') as fo:
             config_text = fo.read()
-        search_pairs = {r"gcn.num_layer = \d": "gcn.num_layer = {}".format(args.layers),
+        search_pairs = {r"gcn.X_dim = \d*": "gcn.X_dim = {}".format(args.X_dim),
+                        r"gcn.num_layer = \d": "gcn.num_layer = {}".format(args.layers),
                         r"gcn.similarity_function = '\w*'": "gcn.similarity_function = '{}'".format(args.sim_func),
                         r"gcn.layerwise_graph = \w*": "gcn.layerwise_graph = {}".format(args.layerwise_graph),
                         r"gcn.skip_connection = \w*": "gcn.skip_connection = {}".format(args.skip_connection)}
+
         for find, replace in search_pairs.items():
             config_text = re.sub(find, replace, config_text)
 
@@ -229,6 +231,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_scene', default=True, action='store_true')
 
     # arguments for GCN
+    parser.add_argument('--X_dim', type=int, default=16)
     parser.add_argument('--layers', type=int, default=2)
     parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
     parser.add_argument('--layerwise_graph', default=False, action='store_true')
