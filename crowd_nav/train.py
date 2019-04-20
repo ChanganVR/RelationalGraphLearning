@@ -208,9 +208,9 @@ def main(args):
                     best_val_model = copy.deepcopy(model.state_dict())
 
             if episode != 0 and (episode + train_episodes * e_id) % checkpoint_interval == 0:
-                save_every_checkpoint = (episode + train_episodes * e_id) // checkpoint_interval - 1
-                rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(save_every_checkpoint) + '.pth'
-                torch.save(model.state_dict(), rl_weight_file)
+                current_checkpoint = (episode + train_episodes * e_id) // checkpoint_interval - 1
+                save_every_checkpoint_rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(current_checkpoint) + '.pth'
+                torch.save(model.state_dict(), save_every_checkpoint_rl_weight_file)
 
     # test with the best val model
     if best_val_model is not None:

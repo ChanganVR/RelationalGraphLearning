@@ -8,16 +8,16 @@ class EnvConfig(BaseEnvConfig):
         self.sim.test_scenario = 'group_circle_crossing'
         self.sim.square_width = 10
         self.sim.circle_radius = 4
-        self.sim.group_num = 2
+        self.sim.group_num = 1
         self.sim.group_size = 1
 
         self.env.train_size = 2500
         self.env.val_size = 500
         self.env.test_size = 500
         if debug:
-            self.env.train_size = 20
-            self.env.val_size = 5
-            self.env.test_size = 5
+            self.env.train_size = 5
+            self.env.val_size = 2
+            self.env.test_size = 2
 
 
 class PolicyConfig(BasePolicyConfig):
@@ -42,9 +42,13 @@ class TrainConfig(BaseTrainConfig):
         super(TrainConfig, self).__init__(debug)
         self.train.rl_train_epochs = 10
         self.train.train_episodes = 2500
-        self.imitation_learning.il_episodes = 2500
+        self.imitation_learning.il_episodes = 500
+        self.train.checkpoint_interval = 2500
+        self.train.evaluation_interval = 2500
         if debug:
-            self.imitation_learning.il_episodes = 10
-            self.train.train_episodes = 20
+            self.imitation_learning.il_episodes = 2
+            self.train.train_episodes = 5
+            self.train.checkpoint_interval = 5
+            self.train.evaluation_interval = 5
 
 
