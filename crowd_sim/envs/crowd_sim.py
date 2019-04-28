@@ -603,7 +603,7 @@ class CrowdSim(gym.Env):
                 ax.add_artist(human_start)
             # add robot start position
             robot_start = mlines.Line2D([self.robot.get_start_position()[0]], [self.robot.get_start_position()[1]],
-                                            color= robot_color,
+                                            color=robot_color,
                                             marker='o', linestyle='None', markersize=8)
             robot_start_position = [self.robot.get_start_position()[0], self.robot.get_start_position()[1]]
             ax.add_artist(robot_start)

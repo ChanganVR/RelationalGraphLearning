@@ -164,11 +164,19 @@ def main(args):
     # evaluate the model after imitation learning
     if episode % evaluation_interval == 0:
         logging.info('Evaluate the model instantly after imitation learning on the validation cases')
-        sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
+        sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, print_failure=True)
         writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
         writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
         writer.add_scalar('val/time', time, episode // evaluation_interval)
         writer.add_scalar('val/reward', reward, episode // evaluation_interval)
+
+        if args.test_after_every_eval:
+            sr, cr, time, reward = explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, print_failure=True)
+            writer.add_scalar('test/success_rate', sr, episode // evaluation_interval)
+            writer.add_scalar('test/collision_rate', cr, episode // evaluation_interval)
+            writer.add_scalar('test/time', time, episode // evaluation_interval)
+            writer.add_scalar('test/reward', reward, episode // evaluation_interval)
+
 
     for e_id in range(rl_train_epochs):
         episode = 0
@@ -197,7 +205,7 @@ def main(args):
                 explorer.update_target_model(model)
             # evaluate the model
             if (episode + train_episodes * e_id) % evaluation_interval == 0:
-                sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
+                sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id, print_failure=True)
                 writer.add_scalar('val/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
                 writer.add_scalar('val/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
                 writer.add_scalar('val/time', time, (episode + train_episodes * e_id) // evaluation_interval)
@@ -206,6 +214,13 @@ def main(args):
                 if (episode + train_episodes * e_id) % checkpoint_interval == 0 and reward > best_val_reward:
                     best_val_reward = reward
                     best_val_model = copy.deepcopy(model.state_dict())
+            # test after every evaluation to check how the generalization performance evolves
+                if args.test_after_every_eval:
+                    sr, cr, time, reward = explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, epoch=e_id, print_failure=True)
+                    writer.add_scalar('test/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
+                    writer.add_scalar('test/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
+                    writer.add_scalar('test/time', time, (episode + train_episodes * e_id) // evaluation_interval)
+                    writer.add_scalar('test/reward', reward, (episode + train_episodes * e_id) // evaluation_interval)
 
             if episode != 0 and (episode + train_episodes * e_id) % checkpoint_interval == 0:
                 current_checkpoint = (episode + train_episodes * e_id) // checkpoint_interval - 1
@@ -217,13 +232,13 @@ def main(args):
         model.load_state_dict(best_val_model)
         torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
         logging.info('Save the best val model with the reward: {}'.format(best_val_reward))
-    explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, epoch=e_id)
+    explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, epoch=e_id, print_failure=True)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/group_config.py')
+    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
@@ -231,6 +246,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--save_scene', default=True, action='store_true')
+    parser.add_argument('--test_after_every_eval', default=True, action='store_true')
 
     # arguments for GCN
     parser.add_argument('--X_dim', type=int, default=16)
@@ -238,6 +254,9 @@ if __name__ == '__main__':
     parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
     parser.add_argument('--layerwise_graph', default=False, action='store_true')
     parser.add_argument('--skip_connection', default=False, action='store_true')
+
+    # arguments for GNN
+
 
     sys_args = parser.parse_args()
 

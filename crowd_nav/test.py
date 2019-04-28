@@ -20,7 +20,10 @@ def main(args):
     logging.info('Using device: %s', device)
 
     if args.model_dir is not None:
-        config_file = os.path.join(args.model_dir, 'config.py')
+        if args.config is not None:
+            config_file = args.config
+        else:
+            config_file = os.path.join(args.model_dir, 'config.py')
         if args.il:
             model_weights = os.path.join(args.model_dir, 'il_model.pth')
             logging.info('Loaded IL weights')
@@ -115,8 +118,8 @@ def main(args):
                 if args.policy == 'gcn':
                     args.video_file = os.path.join(args.video_dir, args.policy + '_' + policy_config.gcn.similarity_function)
                 else:
-                    args.video_file = os.path.join(args.video_file + args.policy)
-                args.video_file = args.video_file + '_' + str(args.test_case) + '.mp4'
+                    args.video_file = os.path.join(args.video_dir, args.policy)
+                args.video_file = args.video_file + '_' + args.phase + '_' + str(args.test_case) + '.mp4'
 
             env.render('video', args.video_file)
 
@@ -130,7 +133,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
-    parser.add_argument('--config', type=str, default='icra_config.py')
+    parser.add_argument('--config', type=str, default=None)
     parser.add_argument('--policy', type=str, default='gcn')
     parser.add_argument('--model_dir', type=str, default=None)
     parser.add_argument('--il', default=False, action='store_true')
@@ -148,7 +151,7 @@ if __name__ == '__main__':
     parser.add_argument('--human_num', type=int, default=None)
     parser.add_argument('--group_size', type=int, default=None)
     parser.add_argument('--group_num', type=int, default=None)
-    parser.add_argument('--safety_space', type=float, default=None)
+    parser.add_argument('--safety_space', type=float, default=0.2)
 
     sys_args = parser.parse_args()
 
