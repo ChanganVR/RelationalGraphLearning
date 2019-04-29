@@ -16,8 +16,16 @@ from crowd_nav.utils.memory import ReplayMemory
 from crowd_nav.utils.explorer import Explorer
 from crowd_nav.policy.policy_factory import policy_factory
 
+def set_random_seeds(seed):
+    """
+    Sets the random seeds for pytorch cpu and gpu
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    return None
 
 def main(args):
+    set_random_seeds(args.randomseed)
     # configure paths
     make_new_dir = True
     if os.path.exists(args.output_dir):
@@ -238,7 +246,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
+    parser.add_argument('--config', type=str, default='configs/icra_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
@@ -247,6 +255,8 @@ if __name__ == '__main__':
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--save_scene', default=True, action='store_true')
     parser.add_argument('--test_after_every_eval', default=True, action='store_true')
+    parser.add_argument('--randomseed', type=int, default=17)
+
 
     # arguments for GCN
     parser.add_argument('--X_dim', type=int, default=16)
