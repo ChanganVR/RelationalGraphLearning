@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Config(object):
     def __init__(self):
         pass
@@ -104,10 +105,9 @@ class BasePolicyConfig(object):
     gcn.final_state_dim = gcn.X_dim
     gcn.gcn2_w1_dim = gcn.X_dim
     gcn.planning_dims = [150, 100, 100, 1]
-    gcn.similarity_function = 'gaussian'
-    gcn.layerwise_graph = False
+    gcn.similarity_function = 'embedded_gaussian'
+    gcn.layerwise_graph = True
     gcn.skip_connection = False
-
 
     def __init__(self, debug=False):
         pass
@@ -116,6 +116,7 @@ class BasePolicyConfig(object):
 class BaseTrainConfig(object):
     trainer = Config()
     trainer.batch_size = 100
+    trainer.optimizer = 'Adam'
 
     imitation_learning = Config()
     imitation_learning.il_episodes = 2000

@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 
 class Trainer(object):
-    def __init__(self, model, memory, device, batch_size):
+    def __init__(self, model, memory, device, batch_size, optimizer_str):
         """
         Train the trainable model of a policy
         """
@@ -16,13 +16,18 @@ class Trainer(object):
         self.memory = memory
         self.data_loader = None
         self.batch_size = batch_size
+        self.optimizer_str= optimizer_str
         self.optimizer = None
 
     def set_learning_rate(self, learning_rate):
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        #self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
-        logging.info('Lr: {} for parameters {} with Adam optimizer'.format(learning_rate, ' '.join(
-            [name for name, param in self.model.named_parameters()])))
+        if self.optimizer_str == 'Adam':
+            self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        elif self.optimizer_str == 'SGD':
+            self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
+        else:
+            raise NotImplementedError
+        logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
+            [name for name, param in self.model.named_parameters()]), self.optimizer_str))
 
     def optimize_epoch(self, num_epochs, writer):
         if self.optimizer is None:

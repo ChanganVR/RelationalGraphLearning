@@ -32,6 +32,7 @@ class Explorer(object):
         discomfort = 0
         min_dist = []
         cumulative_rewards = []
+        average_returns = []
         collision_cases = []
         timeout_cases = []
 
@@ -40,7 +41,8 @@ class Explorer(object):
                 ob = self.env.reset(phase)
 
                 if self.env.save_scene_dir is not None:
-                    save_scene_file = os.path.join(self.env.save_scene_dir, 'il' + str(imitation_learning) + '_' + phase + '_' + str(self.env.case_counter[phase]) + '.jpg')
+                    save_scene_file = os.path.join(self.env.save_scene_dir, 'il' + str(imitation_learning) + '_' + phase
+                                                   + '_' + str(self.env.case_counter[phase]) + '.jpg')
                     if not os.path.isfile(save_scene_file):
                         self.env.render('scene', save_scene_file)
 
@@ -80,6 +82,12 @@ class Explorer(object):
 
                 cumulative_rewards.append(sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
                                                * reward for t, reward in enumerate(rewards)]))
+                returns = []
+                for step in range(len(rewards)):
+                    step_return = sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
+                                       * reward for t, reward in enumerate(rewards[step:])])
+                    returns.append(step_return)
+                average_returns.append(average(returns))
                 pbar.update(1)
         success_rate = success / k
         collision_rate = collision / k
@@ -88,9 +96,10 @@ class Explorer(object):
 
         extra_info = '' if episode is None else 'in episode {} '.format(episode)
         extra_info = extra_info + '' if epoch is None else extra_info + ' in epoch {} '.format(epoch)
-        logging.info('{:<5} {}has success rate: {:.2f}, collision rate: {:.2f}, nav time: {:.2f}, total reward: {:.4f}'.
-                     format(phase.upper(), extra_info, success_rate, collision_rate, avg_nav_time,
-                            average(cumulative_rewards)))
+        logging.info('{:<5} {}has success rate: {:.2f}, collision rate: {:.2f}, nav time: {:.2f}, total reward: {:.4f},'
+                     ' average return: {:.4f}'. format(phase.upper(), extra_info, success_rate, collision_rate,
+                                                       avg_nav_time, average(cumulative_rewards),
+                                                       average(average_returns)))
         if phase in ['val', 'test']:
             total_time = sum(success_times + collision_times + timeout_times)
             logging.info('Frequency of being in danger: %.2f and average min separate distance in danger: %.2f',
@@ -100,7 +109,7 @@ class Explorer(object):
             logging.info('Collision cases: ' + ' '.join([str(x) for x in collision_cases]))
             logging.info('Timeout cases: ' + ' '.join([str(x) for x in timeout_cases]))
         
-        return success_rate, collision_rate, avg_nav_time, average(cumulative_rewards)
+        return success_rate, collision_rate, avg_nav_time, average(cumulative_rewards), average(average_returns)
     
     def update_memory(self, states, actions, rewards, imitation_learning=False):
         if self.memory is None or self.gamma is None:

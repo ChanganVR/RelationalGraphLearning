@@ -3,9 +3,6 @@ import argparse
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
-sns.set(style='darkgrid')
 
 
 def running_mean(x, n):
@@ -23,7 +20,7 @@ def main():
     parser.add_argument('--plot_train', default=True, action='store_true')
     parser.add_argument('--plot_val', default=False, action='store_true')
     parser.add_argument('--plot_all', default=False, action='store_true')
-    parser.add_argument('--window_size', type=int, default=1)
+    parser.add_argument('--window_size', type=int, default=100)
     args = parser.parse_args()
 
     models = []
@@ -39,7 +36,9 @@ def main():
         log_dir = args.log_files[0]
         if not os.path.isdir(log_dir):
             parser.error('Input argument should be the directory containing all experiment folders')
-        args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in os.listdir(log_dir)]
+        # args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in os.listdir(log_dir)]
+        args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in
+                          ['om-sarl2', '2_embedded_gaussian_ls']]
 
     args.log_files = sorted(args.log_files)
     if not models:
@@ -143,14 +142,8 @@ def main():
             if ax4 is None:
                 _, ax4 = plt.subplots()
             if args.plot_train:
-                # ax4.plot(range(len(train_reward_smooth)), train_reward_smooth)
-                # ax4_legends.append(models[i])
-                indices = []
-                for j in range(len(train_reward_smooth)):
-                    indices.append(j//50)
-                df = pd.DataFrame(data={models[i]: train_reward_smooth, 'step': indices})
-                sns.lineplot(x="step", y=models[i], data=df, legend='full')
-
+                ax4.plot(range(len(train_reward_smooth)), train_reward_smooth)
+                ax4_legends.append(models[i])
             if args.plot_val:
                 ax4.plot(val_episode, val_reward)
                 ax4_legends.append(models[i])

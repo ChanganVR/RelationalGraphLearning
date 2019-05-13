@@ -113,7 +113,8 @@ def main(args):
     memory = ReplayMemory(capacity)
     model = policy.get_model()
     batch_size = train_config.trainer.batch_size
-    trainer = Trainer(model, memory, device, batch_size)
+    optimizer = train_config.trainer.optimizer
+    trainer = Trainer(model, memory, device, batch_size, optimizer)
     explorer = Explorer(env, robot, device, memory, policy.gamma, target_policy=policy)
 
     # imitation learning
@@ -164,11 +165,12 @@ def main(args):
     # evaluate the model after imitation learning
     if episode % evaluation_interval == 0:
         logging.info('Evaluate the model instantly after imitation learning on the validation cases')
-        sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
+        sr, cr, time, reward, avg_return = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
         writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
         writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
         writer.add_scalar('val/time', time, episode // evaluation_interval)
         writer.add_scalar('val/reward', reward, episode // evaluation_interval)
+        writer.add_scalar('val/avg_return', avg_return, episode // evaluation_interval)
 
     for e_id in range(rl_train_epochs):
         episode = 0
@@ -183,12 +185,13 @@ def main(args):
             robot.policy.set_epsilon(epsilon)
 
             # sample k episodes into memory and optimize over the generated memory
-            sr, cr, time, reward = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True,
+            sr, cr, time, reward, avg_return = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True,
                                                            episode=episode, epoch=e_id)
             writer.add_scalar('train/success_rate', sr, episode + train_episodes * e_id)
             writer.add_scalar('train/collision_rate', cr, episode + train_episodes * e_id)
             writer.add_scalar('train/time', time, episode + train_episodes * e_id)
             writer.add_scalar('train/reward', reward, episode + train_episodes * e_id)
+            writer.add_scalar('train/avg_return', avg_return, episode + train_episodes * e_id)
 
             trainer.optimize_batch(train_batches)
             episode += 1
@@ -197,11 +200,12 @@ def main(args):
                 explorer.update_target_model(model)
             # evaluate the model
             if (episode + train_episodes * e_id) % evaluation_interval == 0:
-                sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
+                sr, cr, time, reward, avg_return = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
                 writer.add_scalar('val/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
                 writer.add_scalar('val/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
                 writer.add_scalar('val/time', time, (episode + train_episodes * e_id) // evaluation_interval)
                 writer.add_scalar('val/reward', reward, (episode + train_episodes * e_id) // evaluation_interval)
+                writer.add_scalar('val/avg_return', avg_return, (episode + train_episodes * e_id) // evaluation_interval)
 
                 if (episode + train_episodes * e_id) % checkpoint_interval == 0 and reward > best_val_reward:
                     best_val_reward = reward
@@ -223,7 +227,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/group_config.py')
+    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
@@ -233,7 +237,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_scene', default=True, action='store_true')
 
     # arguments for GCN
-    parser.add_argument('--X_dim', type=int, default=16)
+    parser.add_argument('--X_dim', type=int, default=32)
     parser.add_argument('--layers', type=int, default=2)
     parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
     parser.add_argument('--layerwise_graph', default=False, action='store_true')

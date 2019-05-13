@@ -22,6 +22,7 @@ class PolicyConfig(BasePolicyConfig):
         self.gcn.layerwise_graph = False
         self.gcn.skip_connection = False
 
+
 class TrainConfig(BaseTrainConfig):
     def __init__(self, debug=False):
         super(TrainConfig, self).__init__(debug)
