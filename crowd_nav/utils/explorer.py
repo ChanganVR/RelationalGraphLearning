@@ -36,58 +36,64 @@ class Explorer(object):
         collision_cases = []
         timeout_cases = []
 
-        with tqdm(total=k) as pbar:
-            for i in range(k):
-                ob = self.env.reset(phase)
+        if k != 1:
+            pbar = tqdm(total=k)
+        else:
+            pbar = None
 
-                if self.env.save_scene_dir is not None:
-                    save_scene_file = os.path.join(self.env.save_scene_dir, 'il' + str(imitation_learning) + '_' + phase
-                                                   + '_' + str(self.env.case_counter[phase]) + '.jpg')
-                    if not os.path.isfile(save_scene_file):
-                        self.env.render('scene', save_scene_file)
+        for i in range(k):
+            ob = self.env.reset(phase)
 
-                done = False
-                states = []
-                actions = []
-                rewards = []
-                while not done:
-                    action = self.robot.act(ob)
-                    ob, reward, done, info = self.env.step(action)
-                    states.append(self.robot.policy.last_state)
-                    actions.append(action)
-                    rewards.append(reward)
+            if self.env.save_scene_dir is not None:
+                save_scene_file = os.path.join(self.env.save_scene_dir, 'il' + str(imitation_learning) + '_' + phase
+                                               + '_' + str(self.env.case_counter[phase]) + '.jpg')
+                if not os.path.isfile(save_scene_file):
+                    self.env.render('scene', save_scene_file)
 
-                    if isinstance(info, Discomfort):
-                        discomfort += 1
-                        min_dist.append(info.min_dist)
+            done = False
+            states = []
+            actions = []
+            rewards = []
+            while not done:
+                action = self.robot.act(ob)
+                ob, reward, done, info = self.env.step(action)
+                states.append(self.robot.policy.last_state)
+                actions.append(action)
+                rewards.append(reward)
 
-                if isinstance(info, ReachGoal):
-                    success += 1
-                    success_times.append(self.env.global_time)
-                elif isinstance(info, Collision):
-                    collision += 1
-                    collision_cases.append(i)
-                    collision_times.append(self.env.global_time)
-                elif isinstance(info, Timeout):
-                    timeout += 1
-                    timeout_cases.append(i)
-                    timeout_times.append(self.env.time_limit)
-                else:
-                    raise ValueError('Invalid end signal from environment')
+                if isinstance(info, Discomfort):
+                    discomfort += 1
+                    min_dist.append(info.min_dist)
 
-                if update_memory:
-                    if isinstance(info, ReachGoal) or isinstance(info, Collision):
-                        # only add positive(success) or negative(collision) experience in experience set
-                        self.update_memory(states, actions, rewards, imitation_learning)
+            if isinstance(info, ReachGoal):
+                success += 1
+                success_times.append(self.env.global_time)
+            elif isinstance(info, Collision):
+                collision += 1
+                collision_cases.append(i)
+                collision_times.append(self.env.global_time)
+            elif isinstance(info, Timeout):
+                timeout += 1
+                timeout_cases.append(i)
+                timeout_times.append(self.env.time_limit)
+            else:
+                raise ValueError('Invalid end signal from environment')
 
-                cumulative_rewards.append(sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
-                                               * reward for t, reward in enumerate(rewards)]))
-                returns = []
-                for step in range(len(rewards)):
-                    step_return = sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
-                                       * reward for t, reward in enumerate(rewards[step:])])
-                    returns.append(step_return)
-                average_returns.append(average(returns))
+            if update_memory:
+                if isinstance(info, ReachGoal) or isinstance(info, Collision):
+                    # only add positive(success) or negative(collision) experience in experience set
+                    self.update_memory(states, actions, rewards, imitation_learning)
+
+            cumulative_rewards.append(sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
+                                           * reward for t, reward in enumerate(rewards)]))
+            returns = []
+            for step in range(len(rewards)):
+                step_return = sum([pow(self.gamma, t * self.robot.time_step * self.robot.v_pref)
+                                   * reward for t, reward in enumerate(rewards[step:])])
+                returns.append(step_return)
+            average_returns.append(average(returns))
+
+            if pbar:
                 pbar.update(1)
         success_rate = success / k
         collision_rate = collision / k
