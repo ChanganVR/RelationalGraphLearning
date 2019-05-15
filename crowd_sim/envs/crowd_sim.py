@@ -358,7 +358,7 @@ class CrowdSim(gym.Env):
                     self.panel_scale = 50
                     self.robot.set(0, -self.panel_height * 100/(2 * self.panel_scale  *1.5), 0, self.panel_height/(2 * self.panel_scale * 1.5), 0, 0, np.pi / 2)
                     data_file = '/cs/vml4/shah/CrowdNavExt/crowd_nav/data/sim_data/GC_meta_data.json'
-                    t_start = 0
+                    t_start = 100
 
                     self.t_start = t_start
                     with open(data_file, 'r') as fin:
@@ -727,9 +727,9 @@ class CrowdSim(gym.Env):
             # where there are humans add and remove during the robot navigation period, only for 'realsim_*'
             fig, ax = plt.subplots(figsize=(7, 7))
             ax.tick_params(labelsize=12)
-
-            ax.set_xlim(-self.panel_width / (2 * self.panel_scale), self.panel_width / (2 * self.panel_scale))
-            ax.set_ylim(-self.panel_height / (2 * self.panel_scale), self.panel_height / (2 * self.panel_scale))
+            plot_scale = 1.2
+            ax.set_xlim(-self.panel_width * plot_scale / (2 * self.panel_scale), self.panel_width * plot_scale / (2 * self.panel_scale))
+            ax.set_ylim(-self.panel_height * plot_scale / (2 * self.panel_scale), self.panel_height * plot_scale / (2 * self.panel_scale))
             ax.set_xlabel('x(m)', fontsize=14)
             ax.set_ylabel('y(m)', fontsize=14)
             human_radius = self.humans[0].radius
@@ -739,8 +739,8 @@ class CrowdSim(gym.Env):
             human_colors = [cmap(i)for i in range(len(self.human_starts))]
 
             for h in range(len(self.human_starts)):
-                human_start = mlines.Line2D([self.human_starts[h][0]], [self.human_starts[h][1]], color=human_colors[h], marker='o', linestyle='None', markersize=8)
-                human_goal = mlines.Line2D([self.human_goals[h][0]], [self.human_goals[h][1]], color=human_colors[h], marker='*', linestyle='None', markersize=8)
+                human_start = mlines.Line2D([self.human_starts[h][0]], [self.human_starts[h][1]], color='b', marker='o', linestyle='None', markersize=4)
+                human_goal = mlines.Line2D([self.human_goals[h][0]], [self.human_goals[h][1]], color='r', marker='*', linestyle='None', markersize=4)
 
                 ax.add_artist(human_start)
                 ax.add_artist(human_goal)
@@ -759,11 +759,11 @@ class CrowdSim(gym.Env):
             # sensor_range = plt.Circle(robot_positions[0], self.robot_sensor_range, fill=False, ls='dashed')
             ax.add_artist(robot)
             ax.add_artist(goal)
-            plt.legend([robot, goal], ['Robot', 'Goal'], fontsize=14)
+            #plt.legend([robot, goal], ['Robot', 'Goal'], fontsize=14)
 
             # add humans and their numbers
             # Sha: here humans refer to the humans in the first frame
-            humans = [plt.Circle(human_positions[0][i], human_radius, fill=False, color=cmap(i))
+            humans = [plt.Circle(human_positions[0][i], human_radius, fill=False, color='r')
                       for i in range(self.dynamic_human_num[0])]
             # disable showing human numbers
             if display_numbers:
@@ -775,8 +775,12 @@ class CrowdSim(gym.Env):
                     ax.add_artist(human_numbers[i])
 
             # add time annotation
-            time = plt.text(0.4, 0.9, 'Time: {}'.format(0), fontsize=16, transform=ax.transAxes)
+            time = plt.text(0.1, 0.9, 'Time: {}'.format(0), fontsize=16, transform=ax.transAxes)
             ax.add_artist(time)
+
+            # add human counter
+            count_human = plt.text(0.6, 0.9, 'Count Human: {}'.format(0), fontsize=16, transform=ax.transAxes)
+            ax.add_artist(count_human)
 
             # visualize attention scores
             # if hasattr(self.robot.policy, 'get_attention_weights'):
@@ -834,7 +838,7 @@ class CrowdSim(gym.Env):
                     human_number.set_visible(False)
                     #human_number.remove()
 
-                humans = [plt.Circle(human_positions[frame_num][i], human_radius, fill=False, color=cmap(i))
+                humans = [plt.Circle(human_positions[frame_num][i], human_radius, fill=False, color='r')
                           for i in range(self.dynamic_human_num[frame_num])]
                 if display_numbers:
                     human_numbers = [plt.text(humans[i].center[0] - x_offset, humans[i].center[1] + y_offset, str(human_ids[frame_num][i]),
@@ -852,7 +856,7 @@ class CrowdSim(gym.Env):
                         arrows = [patches.FancyArrowPatch(*orientation[i], color='black',
                                   arrowstyle=arrow_style)]
                     else:
-                        arrows.extend([patches.FancyArrowPatch(*orientation[i], color=cmap(i-1),
+                        arrows.extend([patches.FancyArrowPatch(*orientation[i], color='r',
                                        arrowstyle=arrow_style)])
                 for arrow in arrows:
                     ax.add_artist(arrow)
@@ -860,6 +864,7 @@ class CrowdSim(gym.Env):
                     #     attention_scores[i].set_text('human {}: {:.2f}'.format(i, self.attention_weights[frame_num][i]))
 
                 time.set_text('Time: {:.2f}'.format(frame_num * self.time_step))
+                count_human.set_text('Count Human: {:.2f}'.format(self.dynamic_human_num[frame_num]))
 
             def plot_value_heatmap():
                 if self.robot.kinematics != 'holonomic':
