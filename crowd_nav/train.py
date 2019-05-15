@@ -234,7 +234,7 @@ if __name__ == '__main__':
     parser.add_argument('--resume', default=False, action='store_true')
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
-    parser.add_argument('--save_scene', default=True, action='store_true')
+    parser.add_argument('--save_scene', default=False, action='store_true')
 
     # arguments for GCN
     parser.add_argument('--X_dim', type=int, default=32)
