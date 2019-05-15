@@ -82,6 +82,7 @@ def main(args):
                         format='%(asctime)s, %(levelname)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     repo = git.Repo(search_parent_directories=True)
     logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
+    logging.info('Current config content is :{}'.format(config))
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
     writer = SummaryWriter(log_dir=args.output_dir)
@@ -170,6 +171,7 @@ def main(args):
     best_val_reward = -1
     best_val_model = None
     # evaluate the model after imitation learning
+
     if episode % evaluation_interval == 0:
         logging.info('Evaluate the model instantly after imitation learning on the validation cases')
         sr, cr, time, reward = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, print_failure=True)
@@ -185,6 +187,8 @@ def main(args):
             writer.add_scalar('test/time', time, episode // evaluation_interval)
             writer.add_scalar('test/reward', reward, episode // evaluation_interval)
 
+    if args.save_stable_models:
+        stable_rewards = []
 
     for e_id in range(rl_train_epochs):
         episode = 0
@@ -235,6 +239,30 @@ def main(args):
                 save_every_checkpoint_rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(current_checkpoint) + '.pth'
                 torch.save(model.state_dict(), save_every_checkpoint_rl_weight_file)
 
+            if args.save_stable_models:
+                stable_checkpoint_interval = 20
+                save_after = 0.9
+                total_stable_models = train_episodes * (1 - save_after) // stable_checkpoint_interval
+                test_size = int(env_config.env.test_size // total_stable_models)
+                logging.info('check the test_size: {}'.format(test_size))
+                logging.info('save_after: {}'.format(save_after))
+                logging.info('stable_checkpoint_interval: {}'.format(stable_checkpoint_interval))
+                if (episode + train_episodes * e_id) >= train_episodes * save_after:
+                    if episode != 0 and (episode + train_episodes * e_id) % stable_checkpoint_interval == 0:
+                        current_stable_checkpoint = (episode + train_episodes * e_id) // stable_checkpoint_interval - 1
+                        save_every_stable_rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(episode) + '.pth'
+                        torch.save(model.state_dict(), save_every_stable_rl_weight_file)
+                        logging.info('check the env.case_encounter: {}'.format(env.case_counter['test']))
+                        sr, cr, time, reward = explorer.run_k_episodes(test_size, 'test', episode=episode, epoch=e_id, print_failure=True)
+                        stable_rewards.append(reward)
+                        writer.add_scalar('stable_test/success_rate', sr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+                        writer.add_scalar('stable_test/collision_rate', cr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+                        writer.add_scalar('stable_test/time', time, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+                        writer.add_scalar('stable_test/reward', reward, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+
+    if args.save_stable_models:
+        logging.info(' the {} stable models average reward on the test scenarios are :{}'.format(sum(stable_rewards)/len(stable_rewards)))
+
     # test with the best val model
     if best_val_model is not None:
         model.load_state_dict(best_val_model)
@@ -246,7 +274,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/icra_config.py')
+    parser.add_argument('--config', type=str, default='configs/group_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
@@ -254,9 +282,9 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--save_scene', default=True, action='store_true')
-    parser.add_argument('--test_after_every_eval', default=True, action='store_true')
+    parser.add_argument('--test_after_every_eval', default=False, action='store_true')
     parser.add_argument('--randomseed', type=int, default=17)
-
+    parser.add_argument('--save_stable_models', default=True, action='store_true')
 
     # arguments for GCN
     parser.add_argument('--X_dim', type=int, default=16)

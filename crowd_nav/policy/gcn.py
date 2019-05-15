@@ -135,6 +135,7 @@ class GCN(MultiHumanRL):
 
     def configure(self, config):
         self.multiagent_training = config.gcn.multiagent_training
+
         num_layer = config.gcn.num_layer
         X_dim = config.gcn.X_dim
         wr_dims = config.gcn.wr_dims

@@ -38,7 +38,6 @@ class Explorer(object):
         with tqdm(total=k) as pbar:
             for i in range(k):
                 ob = self.env.reset(phase)
-
                 if self.env.save_scene_dir is not None:
                     save_scene_file = os.path.join(self.env.save_scene_dir, 'il' + str(imitation_learning) + '_' + phase + '_' + str(self.env.case_counter[phase]) + '.jpg')
                     if not os.path.isfile(save_scene_file):
@@ -101,7 +100,7 @@ class Explorer(object):
             logging.info('Timeout cases: ' + ' '.join([str(x) for x in timeout_cases]))
         
         return success_rate, collision_rate, avg_nav_time, average(cumulative_rewards)
-    
+
     def update_memory(self, states, actions, rewards, imitation_learning=False):
         if self.memory is None or self.gamma is None:
             raise ValueError('Memory or gamma value is not set!')

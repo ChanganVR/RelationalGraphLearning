@@ -136,7 +136,7 @@ class BaseTrainConfig(object):
     train = Config()
     train.rl_train_epochs = 1
     train.rl_learning_rate = 0.001
-    # number of batches to train at the end of training episode
+    # number of batches to train at the end of training episodeil_episodes
     train.train_batches = 100
     # training episodes in outer loop
     train.train_episodes = 10000
