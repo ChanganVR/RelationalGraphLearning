@@ -248,7 +248,6 @@ class CrowdSim(gym.Env):
             raise NotImplementedError
         return group
 
-
     def reset(self, phase='test', test_case=None):
         """
         Set px, py, gx, gy, vx, vy, theta for robot and humans
@@ -588,19 +587,21 @@ class CrowdSim(gym.Env):
             ax.set_ylim(-11, 11)
             ax.set_xlabel('x(m)', fontsize=14)
             ax.set_ylabel('y(m)', fontsize=14)
+            show_human_start_goal = False
 
             # add human start positions and goals
             human_colors = [cmap(i) for i in range(len(self.humans))]
-            for i in range(len(self.humans)):
-                human = self.humans[i]
-                human_goal = mlines.Line2D([human.get_goal_position()[0]], [human.get_goal_position()[1]],
-                                           color=human_colors[i],
-                                           marker='*', linestyle='None', markersize=8)
-                ax.add_artist(human_goal)
-                human_start = mlines.Line2D([human.get_start_position()[0]], [human.get_start_position()[1]],
-                                            color=human_colors[i],
-                                            marker='o', linestyle='None', markersize=8)
-                ax.add_artist(human_start)
+            if show_human_start_goal:
+                for i in range(len(self.humans)):
+                    human = self.humans[i]
+                    human_goal = mlines.Line2D([human.get_goal_position()[0]], [human.get_goal_position()[1]],
+                                               color=human_colors[i],
+                                               marker='*', linestyle='None', markersize=8)
+                    ax.add_artist(human_goal)
+                    human_start = mlines.Line2D([human.get_start_position()[0]], [human.get_start_position()[1]],
+                                                color=human_colors[i],
+                                                marker='o', linestyle='None', markersize=8)
+                    ax.add_artist(human_start)
             # add robot start position
             robot_start = mlines.Line2D([self.robot.get_start_position()[0]], [self.robot.get_start_position()[1]],
                                             color= robot_color,
@@ -633,7 +634,7 @@ class CrowdSim(gym.Env):
                     ax.add_artist(human_numbers[i])
 
             # add time annotation
-            time = plt.text(0.4, 0.9, 'Time: {}'.format(0), fontsize=16, transform = ax.transAxes)
+            time = plt.text(0.4, 0.9, 'Time: {}'.format(0), fontsize=16, transform=ax.transAxes)
             ax.add_artist(time)
 
             # visualize attention scores
@@ -730,9 +731,9 @@ class CrowdSim(gym.Env):
                 print('   ' + ' '.join(['{:>5}'.format(i-1) for i in range(w)]))
                 for i in range(h):
                     print('{:<3}'.format(i-1) + ' '.join(['{:.3f}'.format(self.As[global_step][i][j]) for j in range(w)]))
-                with np.printoptions(precision=3, suppress=True):
-                    print('A is: ')
-                    print(self.As[global_step])
+                # with np.printoptions(precision=3, suppress=True):
+                #     print('A is: ')
+                #     print(self.As[global_step])
 
             def print_feat():
                 with np.printoptions(precision=3, suppress=True):

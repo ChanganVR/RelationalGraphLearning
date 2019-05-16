@@ -20,7 +20,7 @@ class Explorer(object):
         self.target_model = copy.deepcopy(target_model)
 
     # @profile
-    def run_k_episodes(self, k, phase, update_memory=False, imitation_learning=False, episode=None, epoch= None,
+    def run_k_episodes(self, k, phase, update_memory=False, imitation_learning=False, episode=None, epoch=None,
                        print_failure=False):
         self.robot.policy.set_phase(phase)
         success_times = []
