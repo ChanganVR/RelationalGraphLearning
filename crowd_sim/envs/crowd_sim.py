@@ -432,11 +432,16 @@ class CrowdSim(gym.Env):
                     self.generate_human(human)
             self.global_time += self.time_step
 
-        # compute the observation
-        if self.robot.sensor == 'coordinates':
-            ob = self.compute_observation_for(self.robot)
-        elif self.robot.sensor == 'RGB':
-            raise NotImplementedError
+            # compute the observation
+            if self.robot.sensor == 'coordinates':
+                ob = self.compute_observation_for(self.robot)
+            elif self.robot.sensor == 'RGB':
+                raise NotImplementedError
+        else:
+            if self.robot.sensor == 'coordinates':
+                ob = [human.get_next_observable_state(action) for human, action in zip(self.humans, human_actions)]
+            elif self.robot.sensor == 'RGB':
+                raise NotImplementedError
 
         return ob, reward, done, info
 
