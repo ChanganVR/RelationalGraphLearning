@@ -1,4 +1,5 @@
 import logging
+import math
 import gym
 import matplotlib.lines as mlines
 import numpy as np
@@ -62,6 +63,8 @@ class CrowdSim(gym.Env):
         self.states = None
         self.action_values = None
         self.attention_weights = None
+        self.robot_actions = None
+        self.rewards = None
         self.As = None
         self.Xs = None
         self.feats = None
@@ -80,6 +83,8 @@ class CrowdSim(gym.Env):
         self.total_group_size = 0
         self.hp_25 = {}
         self.ha_25 = {}
+        self.phase = None
+
     def configure(self, config):
         self.config = config
         self.time_limit = config.env.time_limit
@@ -311,6 +316,7 @@ class CrowdSim(gym.Env):
         :return:
         """
         assert phase in ['train', 'val', 'test']
+        self.phase = phase
         if self.robot is None:
             raise AttributeError('Robot has to be set!')
 
@@ -320,12 +326,13 @@ class CrowdSim(gym.Env):
 
         base_seed = {'train': self.case_capacity['val'] + self.case_capacity['test'],
                      'val': 0, 'test': self.case_capacity['val']}
+
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)
         if self.case_counter[phase] >= 0:
             np.random.seed(base_seed[phase] + self.case_counter[phase])
             random.seed(base_seed[phase] + self.case_counter[phase])
             if phase == 'test':
-                logging.info('current test seed is:{}'.format(base_seed[phase] + self.case_counter[phase]))
+                logging.debug('current test seed is:{}'.format(base_seed[phase] + self.case_counter[phase]))
             if not self.robot.policy.multiagent_training and phase in ['train', 'val']:
                 # only CADRL trains in circle crossing simulation
                 human_num = 1
@@ -351,47 +358,61 @@ class CrowdSim(gym.Env):
                 self.human_num = len(self.humans)
             elif self.current_scenario.startswith('realsim'):
                 if self.current_scenario == 'realsim_GrandCentral':
-                    GC_IMAGE_WIDTH = 1920
-                    GC_IMAGE_HEIGHT = 1080
-                    self.panel_height = GC_IMAGE_HEIGHT
-                    self.panel_width = GC_IMAGE_WIDTH
-                    self.panel_scale = 50
-                    self.robot.set(0, -self.panel_height * 100/(2 * self.panel_scale  *1.5), 0, self.panel_height/(2 * self.panel_scale * 1.5), 0, 0, np.pi / 2)
-                    data_file = '/cs/vml4/shah/CrowdNavExt/crowd_nav/data/sim_data/GC_meta_data.json'
-                    t_start = 100
+                    # reset the intermediate variables for visualization
+                    self.dynamic_human_num = []
+                    self.human_goals = []
+                    self.human_starts = []
 
+                    base_seed = {'train': self.case_size['val'] + self.case_size['test'],
+                                 'val': 0, 'test': self.case_size['val']}
+
+                    if self.p_data_list == None:
+                        # read/preprocess some initialization data about grand central data sim
+                        GC_IMAGE_WIDTH = 1920
+                        GC_IMAGE_HEIGHT = 1080
+                        self.panel_height = GC_IMAGE_HEIGHT
+                        self.panel_width = GC_IMAGE_WIDTH
+                        self.panel_scale = 50
+                        self.robot.set(0, -self.panel_height / (2 * self.panel_scale ), 0, 7
+                                       , 0, 0, np.pi / 2)
+                        data_file = '/cs/vml4/shah/CrowdNavExt/crowd_nav/data/sim_data/GC_meta_data.json'
+                        with open(data_file, 'r') as fin:
+                            data = json.load(fin)
+                        self.p_data_list = data['pedestrian_data_list']
+                        self.f_data_list = data['frame_data_list']
+                        '''
+                        do some data processing
+                        '''
+                        count_abnormal = []
+                        h_id = 1
+                        for human in self.p_data_list[1:]:
+                            tlist = [int(t) for t in list(human.keys())]
+                            if not check_continue(tlist):
+                                count_abnormal.append(h_id)
+                            h_id += 1
+
+                        '''
+                        if not continue, manually add some data to it
+                        '''
+                        for h_id in count_abnormal:
+                            ori_h = self.p_data_list[h_id]
+                            after_add_positions = add_positions(ori_h)
+                            self.p_data_list[h_id] = after_add_positions
+                        '''
+                        after changing the p_data_list, also change f_data_list
+                        '''
+                        new_f_data_list = make_new_f(self.p_data_list)
+                        self.f_data_list = new_f_data_list[:5000]
+
+                    t_start = 3 * (base_seed[phase] + self.case_counter[phase])
+                    logging.info('current phase is: {}, t_start is: {}, self.case_counter is :{}'.format(phase, t_start, self.case_counter[phase]))
                     self.t_start = t_start
-                    with open(data_file, 'r') as fin:
-                        data = json.load(fin)
-                    self.p_data_list = data['pedestrian_data_list']
-                    self.f_data_list = data['frame_data_list']
-                    '''
-                    do some data processing
-                    '''
-                    count_abnormal = []
-                    h_id = 1
-                    for human in self.p_data_list[1:]:
-                        tlist = [int(t) for t in list(human.keys())]
-                        if not check_continue(tlist):
-                            count_abnormal.append(h_id)
-                        h_id += 1
+                    self.humans.extend(self.generate_group(phase, t_in_real=self.t_start))
+                    self.human_num = len(self.humans)
 
-                    '''
-                    if not continue, manually add some data to it
-                    '''
-                    for h_id in count_abnormal:
-                        ori_h = self.p_data_list[h_id]
-                        after_add_positions = add_positions(ori_h)
-                        self.p_data_list[h_id] = after_add_positions
-                    '''
-                    after changing the p_data_list, also change f_data_list
-                    '''
-                    new_f_data_list = make_new_f(self.p_data_list)
-                    self.f_data_list = new_f_data_list[:5000]
                 else:
                     raise NotImplementedError
-                self.humans.extend(self.generate_group(phase, t_in_real=t_start))
-                self.human_num = len(self.humans)
+
 
             # case_counter is always between 0 and case_size[phase]
             self.case_counter[phase] = (self.case_counter[phase] + 1) % self.case_size[phase]
@@ -417,6 +438,8 @@ class CrowdSim(gym.Env):
             self.centralized_planner.time_step = self.time_step
 
         self.states = list()
+        self.robot_actions = list()
+        self.rewards = list()
         if hasattr(self.robot.policy, 'action_values'):
             self.action_values = list()
         if hasattr(self.robot.policy, 'get_attention_weights'):
@@ -448,32 +471,33 @@ class CrowdSim(gym.Env):
         then detect collisions,
         update environment and return
         """
-
-        t_in_real = int(self.global_time / self.time_step) + self.t_start
+        t_in_real = int(self.global_time / self.time_step) + self.t_start + 1
         if self.current_scenario.startswith('realsim'):
-            # first remove human
-            current_num = len(self.humans)
-            remove_pid_set = []
-            for i in range(current_num):
-                human = self.humans[i]
-                last_t = max(list(human.policy.trajectory.keys()))
-                if t_in_real == last_t + 1:
-                    remove_pid_set.append(i)
-            remove_p_set = []
-            for remove_pid in remove_pid_set:
-                remove_p_set.append(self.humans[remove_pid])
-            for remove_p in remove_p_set:
-                self.humans.remove(remove_p)
-            # then add human
-            new_p_set = list(set(self.f_data_list[t_in_real]) - set(self.f_data_list[t_in_real -1 ]))
-            if len(new_p_set) > 0:
-                new_humans = self.generate_group(t_in_real=t_in_real, p_set=new_p_set)
-                for human in new_humans:
-                    human.time_step = self.time_step
-                    human.policy.time_step = self.time_step
-                self.humans.extend(new_humans)
-
-        self.dynamic_human_num.append(len(self.humans))
+            if update:
+                # first remove human
+                current_num = len(self.humans)
+                remove_pid_set = []
+                for i in range(current_num):
+                    human = self.humans[i]
+                    last_t = max(list(human.policy.trajectory.keys()))
+                    if t_in_real == last_t + 1:
+                        remove_pid_set.append(i)
+                remove_p_set = []
+                for remove_pid in remove_pid_set:
+                    remove_p_set.append(self.humans[remove_pid])
+                for remove_p in remove_p_set:
+                    self.humans.remove(remove_p)
+                # then add human
+                new_p_set = list(set(self.f_data_list[t_in_real]) - set(self.f_data_list[t_in_real -1]))
+                if len(new_p_set) > 0:
+                    new_humans = self.generate_group(t_in_real=t_in_real, p_set=new_p_set)
+                    for human in new_humans:
+                        human.time_step = self.time_step
+                        human.policy.time_step = self.time_step
+                    self.humans.extend(new_humans)
+                self.dynamic_human_num.append(len(self.humans))
+            else:
+                print('todo')
 
         if self.centralized_planning:
             agent_states = [human.get_full_state() for human in self.humans]
@@ -506,7 +530,7 @@ class CrowdSim(gym.Env):
             closest_dist = point_to_segment_dist(px, py, ex, ey, 0, 0) - human.radius - self.robot.radius
             if closest_dist < 0:
                 collision = True
-                # logging.debug("Collision: distance between robot and p{} is {:.2E}".format(i, closest_dist))
+                logging.info("Collision: distance between robot and p{} is {:.2E} at time {:.2E}".format(human.id, closest_dist, self.global_time))
                 break
             elif closest_dist < dmin:
                 dmin = closest_dist
@@ -550,10 +574,6 @@ class CrowdSim(gym.Env):
 
         if update:
             # store state, action value and attention weights
-            if self.current_scenario.startswith('realsim'):
-                self.states.append([self.robot.get_full_state(), [human.get_full_state() for human in self.humans], [human.id for human in self.humans]])
-            else:
-                self.states.append([self.robot.get_full_state(), [human.get_full_state() for human in self.humans]])
             if hasattr(self.robot.policy, 'action_values'):
                 self.action_values.append(self.robot.policy.action_values)
             if hasattr(self.robot.policy, 'get_attention_weights'):
@@ -573,7 +593,10 @@ class CrowdSim(gym.Env):
                     self.generate_human(human)
 
             self.global_time += self.time_step
-
+            self.states.append([self.robot.get_full_state(), [human.get_full_state() for human in self.humans],
+                                [human.id for human in self.humans]])
+            self.robot_actions.append(action)
+            self.rewards.append(reward)
         # compute the observation
         if self.robot.sensor == 'coordinates':
             ob = self.compute_observation_for(self.robot)
@@ -732,7 +755,8 @@ class CrowdSim(gym.Env):
             ax.set_ylim(-self.panel_height * plot_scale / (2 * self.panel_scale), self.panel_height * plot_scale / (2 * self.panel_scale))
             ax.set_xlabel('x(m)', fontsize=14)
             ax.set_ylabel('y(m)', fontsize=14)
-            human_radius = self.humans[0].radius
+            plot_human_radius = 0.3
+            plot_robot_radius = 0.3
             human_positions = [[state[1][j].position for j in range(len(state[1]))] for state in self.states]
             human_ids = [[state[2][j] for j in range(len(state[2]))] for state in self.states]
 
@@ -755,7 +779,7 @@ class CrowdSim(gym.Env):
             goal = mlines.Line2D([self.robot.get_goal_position()[0]], [self.robot.get_goal_position()[1]],
                                  color=robot_color, marker='*', linestyle='None',
                                  markersize=15, label='Goal')
-            robot = plt.Circle(robot_positions[0], self.robot.radius, fill=False, color=robot_color)
+            robot = plt.Circle(robot_positions[0], plot_robot_radius, fill=False, color=robot_color)
             # sensor_range = plt.Circle(robot_positions[0], self.robot_sensor_range, fill=False, ls='dashed')
             ax.add_artist(robot)
             ax.add_artist(goal)
@@ -763,7 +787,7 @@ class CrowdSim(gym.Env):
 
             # add humans and their numbers
             # Sha: here humans refer to the humans in the first frame
-            humans = [plt.Circle(human_positions[0][i], human_radius, fill=False, color='r')
+            humans = [plt.Circle(human_positions[0][i], plot_human_radius, fill=False, color='r')
                       for i in range(self.dynamic_human_num[0])]
             # disable showing human numbers
             if display_numbers:
@@ -782,6 +806,14 @@ class CrowdSim(gym.Env):
             count_human = plt.text(0.6, 0.9, 'Count Human: {}'.format(0), fontsize=16, transform=ax.transAxes)
             ax.add_artist(count_human)
 
+            # add reward displayer
+            reward_displayer = plt.text(0.9, 1, 'r(s,a) is {}'.format(0), fontsize=16, transform=ax.transAxes)
+            ax.add_artist(reward_displayer)
+
+            #add robot velocity displayer
+            robot_velocity = plt.text(0.1, 1, 'v:{}, vx:{}, vy:{}'.format(0, 0, 0), fontsize=16, transform=ax.transAxes)
+            ax.add_artist(robot_velocity)
+
             # visualize attention scores
             # if hasattr(self.robot.policy, 'get_attention_weights'):
             #     attention_scores = [
@@ -789,7 +821,7 @@ class CrowdSim(gym.Env):
             #                  fontsize=16) for i in range(len(self.humans))]
 
             # compute orientation in each step and use arrow to show the direction
-            radius = self.robot.radius
+            radius = plot_robot_radius
             orientations = []
             # sha: deal with the dynamic human number issue:
             time_step = 0
@@ -799,7 +831,7 @@ class CrowdSim(gym.Env):
                     agent_state = state[0] if i == 0 else state[1][i - 1]
                     if self.robot.kinematics == 'unicycle' and i == 0:
                         direction = (
-                        (agent_state_.px, agent_state.py), (agent_state.px + radius * np.cos(agent_state.theta),
+                        (agent_state.px, agent_state.py), (agent_state.px + radius * np.cos(agent_state.theta),
                                                             agent_state.py + radius * np.sin(agent_state.theta)))
                     else:
                         theta = np.arctan2(agent_state.vy, agent_state.vx)
@@ -826,7 +858,7 @@ class CrowdSim(gym.Env):
                 nonlocal arrows
                 nonlocal humans
                 nonlocal human_numbers
-                nonlocal human_radius
+                nonlocal plot_human_radius
 
                 global_step = frame_num
                 robot.center = robot_positions[frame_num]
@@ -838,7 +870,7 @@ class CrowdSim(gym.Env):
                     human_number.set_visible(False)
                     #human_number.remove()
 
-                humans = [plt.Circle(human_positions[frame_num][i], human_radius, fill=False, color='r')
+                humans = [plt.Circle(human_positions[frame_num][i], plot_human_radius, fill=False, color='r')
                           for i in range(self.dynamic_human_num[frame_num])]
                 if display_numbers:
                     human_numbers = [plt.text(humans[i].center[0] - x_offset, humans[i].center[1] + y_offset, str(human_ids[frame_num][i]),
@@ -865,6 +897,14 @@ class CrowdSim(gym.Env):
 
                 time.set_text('Time: {:.2f}'.format(frame_num * self.time_step))
                 count_human.set_text('Count Human: {:.2f}'.format(self.dynamic_human_num[frame_num]))
+
+                robot_action = self.robot_actions[frame_num]
+                v = math.sqrt(math.pow(robot_action.vx, 2) + math.pow(robot_action.vy, 2))
+                vx = robot_action.vx
+                vy = robot_action.vy
+                robot_velocity.set_text('v:{:.3f}, vx:{:.3f}, vy:{:.3f}'.format(v, vx, vy))
+
+                reward_displayer.set_text('ris {}'.format(self.rewards[frame_num]))
 
             def plot_value_heatmap():
                 if self.robot.kinematics != 'holonomic':
