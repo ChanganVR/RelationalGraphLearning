@@ -473,31 +473,30 @@ class CrowdSim(gym.Env):
         """
         t_in_real = int(self.global_time / self.time_step) + self.t_start + 1
         if self.current_scenario.startswith('realsim'):
+            # first remove human
+            current_num = len(self.humans)
+            remove_pid_set = []
+            for i in range(current_num):
+                human = self.humans[i]
+                last_t = max(list(human.policy.trajectory.keys()))
+                if t_in_real == last_t + 1:
+                    remove_pid_set.append(i)
+            remove_p_set = []
+            for remove_pid in remove_pid_set:
+                remove_p_set.append(self.humans[remove_pid])
+            for remove_p in remove_p_set:
+                self.humans.remove(remove_p)
+            # then add human
+            new_p_set = list(set(self.f_data_list[t_in_real]) - set(self.f_data_list[t_in_real -1]))
+            if len(new_p_set) > 0:
+                new_humans = self.generate_group(t_in_real=t_in_real, p_set=new_p_set)
+                for human in new_humans:
+                    human.time_step = self.time_step
+                    human.policy.time_step = self.time_step
+                self.humans.extend(new_humans)
+
             if update:
-                # first remove human
-                current_num = len(self.humans)
-                remove_pid_set = []
-                for i in range(current_num):
-                    human = self.humans[i]
-                    last_t = max(list(human.policy.trajectory.keys()))
-                    if t_in_real == last_t + 1:
-                        remove_pid_set.append(i)
-                remove_p_set = []
-                for remove_pid in remove_pid_set:
-                    remove_p_set.append(self.humans[remove_pid])
-                for remove_p in remove_p_set:
-                    self.humans.remove(remove_p)
-                # then add human
-                new_p_set = list(set(self.f_data_list[t_in_real]) - set(self.f_data_list[t_in_real -1]))
-                if len(new_p_set) > 0:
-                    new_humans = self.generate_group(t_in_real=t_in_real, p_set=new_p_set)
-                    for human in new_humans:
-                        human.time_step = self.time_step
-                        human.policy.time_step = self.time_step
-                    self.humans.extend(new_humans)
                 self.dynamic_human_num.append(len(self.humans))
-            else:
-                print('todo')
 
         if self.centralized_planning:
             agent_states = [human.get_full_state() for human in self.humans]
@@ -597,11 +596,23 @@ class CrowdSim(gym.Env):
                                 [human.id for human in self.humans]])
             self.robot_actions.append(action)
             self.rewards.append(reward)
-        # compute the observation
-        if self.robot.sensor == 'coordinates':
-            ob = self.compute_observation_for(self.robot)
-        elif self.robot.sensor == 'RGB':
-            raise NotImplementedError
+
+            # compute the observation
+            if self.robot.sensor == 'coordinates':
+                ob = self.compute_observation_for(self.robot)
+            elif self.robot.sensor == 'RGB':
+                raise NotImplementedError
+        else:
+            if self.robot.sensor == 'coordinates':
+                ob = [human.get_next_observable_state(action) for human, action in zip(self.humans, human_actions)]
+            elif self.robot.sensor == 'RGB':
+                raise NotImplementedError
+            if self.current_scenario.startswith('realsim'):
+            # remove the added new human and add the removed human cause this is for lookahead
+                for remove_p in remove_p_set:
+                    self.humans.append(remove_p)
+                for human in new_humans:
+                    self.humans.remove(human)
 
         return ob, reward, done, info
 
