@@ -49,6 +49,7 @@ class CADRL(Policy):
         self.rotation_samples = None
         self.query_env = None
         self.action_space = None
+        self.rotation_constraint = None
         self.speeds = None
         self.rotations = None
         self.action_values = None
@@ -73,6 +74,7 @@ class CADRL(Policy):
         self.speed_samples = config.action_space.speed_samples
         self.rotation_samples = config.action_space.rotation_samples
         self.query_env = config.action_space.query_env
+        self.rotation_constraint = config.action_space.rotation_constraint
         self.cell_num = config.om.cell_num
         self.cell_size = config.om.cell_size
         self.om_channel_size = config.om.om_channel_size
@@ -93,7 +95,7 @@ class CADRL(Policy):
         if holonomic:
             rotations = np.linspace(0, 2 * np.pi, self.rotation_samples, endpoint=False)
         else:
-            rotations = np.linspace(-np.pi / 3, np.pi / 3, self.rotation_samples)
+            rotations = np.linspace(-self.rotation_constraint, self.rotation_constraint, self.rotation_samples)
 
         action_space = [ActionXY(0, 0) if holonomic else ActionRot(0, 0)]
         for rotation, speed in itertools.product(rotations, speeds):
