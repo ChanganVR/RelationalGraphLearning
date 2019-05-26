@@ -19,10 +19,13 @@ class realsim_GrandCentral(Policy):
 
     def predict(self, state, t_in_real):
         last_t = max(list(self.trajectory.keys()))
-        if t_in_real == last_t:
+        start_t = min(list(self.trajectory.keys()))
+        if t_in_real == last_t + 1 or t_in_real == start_t:
+            # for those newly appeared human, the action is to just appear and stay in the appear position
             action = ActionXY(0, 0)
         else:
-            vx = (self.trajectory[t_in_real + 1][0] - self.trajectory[t_in_real][0])/self.time_step
-            vy = (self.trajectory[t_in_real + 1][1] - self.trajectory[t_in_real][1])/self.time_step
+            vx = (self.trajectory[t_in_real][0] - self.trajectory[t_in_real - 1][0])/self.time_step
+            vy = (self.trajectory[t_in_real][1] - self.trajectory[t_in_real - 1][1])/self.time_step
             action = ActionXY(vx, vy)
+
         return action

@@ -151,6 +151,8 @@ class BaseTrainConfig(object):
     train.epsilon_decay = 4000
     train.checkpoint_interval = 1000
 
+    train.train_with_pretend_batch = False
+
     def __init__(self, debug=False):
         if debug:
             self.imitation_learning.il_episodes = 10

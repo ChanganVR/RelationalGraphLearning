@@ -10,13 +10,14 @@ class EnvConfig(BaseEnvConfig):
         self.sim.circle_radius = 4
         self.sim.human_num = 5
 
-
 class PolicyConfig(BasePolicyConfig):
     def __init__(self, debug=False):
         super(PolicyConfig, self).__init__(debug)
 
+        self.action_space.query_env = True
+
         # sarl
-        self.sarl.with_om = False
+        self.sarl.with_om = True
 
         # gcn
         self.gcn.num_layer = 1

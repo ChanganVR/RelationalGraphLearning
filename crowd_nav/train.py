@@ -117,6 +117,7 @@ def main(args):
     epsilon_end = train_config.train.epsilon_end
     epsilon_decay = train_config.train.epsilon_decay
     checkpoint_interval = train_config.train.checkpoint_interval
+    train_with_pretend_batch = train_config.train.train_with_pretend_batch
 
     # configure trainer and explorer
     memory = ReplayMemory(capacity)
@@ -150,7 +151,10 @@ def main(args):
         il_policy.safety_space = safety_space
         robot.set_policy(il_policy)
         explorer.run_k_episodes(il_episodes, 'train', update_memory=True, imitation_learning=True)
-        trainer.optimize_epoch(il_epochs, writer)
+        if train_with_pretend_batch:
+            trainer.optimize_epoch_pretend_batch(il_epochs, writer)
+        else:
+            trainer.optimize_epoch(il_epochs, writer)
         torch.save(model.state_dict(), il_weight_file)
         logging.info('Finish imitation learning. Weights saved.')
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
@@ -188,7 +192,11 @@ def main(args):
             writer.add_scalar('test/reward', reward, episode // evaluation_interval)
 
     if args.save_stable_models:
+        stable_srs = []
+        stable_crs = []
         stable_rewards = []
+        stable_times = []
+
 
     for e_id in range(rl_train_epochs):
         episode = 0
@@ -210,7 +218,10 @@ def main(args):
             writer.add_scalar('train/time', time, episode + train_episodes * e_id)
             writer.add_scalar('train/reward', reward, episode + train_episodes * e_id)
 
-            trainer.optimize_batch(train_batches)
+            if train_with_pretend_batch:
+                trainer.optimize_pretend_batch(train_batches)
+            else:
+                trainer.optimize_batch(train_batches)
             episode += 1
 
             if (episode + train_episodes * e_id) % target_update_interval == 0:
@@ -254,6 +265,9 @@ def main(args):
                         torch.save(model.state_dict(), save_every_stable_rl_weight_file)
                         logging.info('check the env.case_encounter: {}'.format(env.case_counter['test']))
                         sr, cr, time, reward = explorer.run_k_episodes(test_size, 'test', episode=episode, epoch=e_id, print_failure=True)
+                        stable_srs.append(sr)
+                        stable_crs.append(cr)
+                        stable_times.append(time)
                         stable_rewards.append(reward)
                         writer.add_scalar('stable_test/success_rate', sr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
                         writer.add_scalar('stable_test/collision_rate', cr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
@@ -261,7 +275,10 @@ def main(args):
                         writer.add_scalar('stable_test/reward', reward, (episode + train_episodes * e_id) // stable_checkpoint_interval)
 
     if args.save_stable_models:
-        logging.info(' the {} stable models average reward on the test scenarios are :{}'.format(sum(stable_rewards)/len(stable_rewards)))
+        logging.info('the {} stable models average reward on the test scenarios are :{}'.format(len(stable_rewards), sum(stable_rewards)/len(stable_rewards)))
+        logging.info('the {} stable models average sr on the test scenarios are :{}'.format(len(stable_srs), sum(stable_srs) /len(stable_srs)))
+        logging.info('the {} stable models average cr on the test scenarios are :{}'.format(len(stable_crs), sum(stable_crs) /len(stable_crs)))
+        logging.info('the {} stable models average time on the test scenarios are :{}'.format(len(stable_times), sum(stable_times) /len(stable_times)))
 
     # test with the best val model
     if best_val_model is not None:
@@ -274,7 +291,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='gcn')
-    parser.add_argument('--config', type=str, default='configs/group_config.py')
+    parser.add_argument('--config', type=str, default='configs/realsim_GrandCentral_config.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
@@ -295,6 +312,8 @@ if __name__ == '__main__':
 
     # arguments for GNN
 
+    # arguments for training with scenarios with variable number of pedestrians in one episode
+    parser.add_argument('--pretend_batch', default=False, action='store_true')
 
     sys_args = parser.parse_args()
 

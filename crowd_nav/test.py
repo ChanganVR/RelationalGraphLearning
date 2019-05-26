@@ -124,9 +124,10 @@ def main(args):
                 else:
                     args.video_file = os.path.join(args.video_dir, args.policy)
                 args.video_file = args.video_file + '_' + args.phase + '_' + str(args.test_case) + '.mp4'
-
-            env.render('dynamic_video', args.video_file)
-
+            if env.current_scenario.startswith('realsim'):
+                env.render('dynamic_video', args.video_file)
+            else:
+                env.render('video', args.video_file)
         logging.info('It takes %.2f seconds to finish. Final status is %s, cumulative_reward is %f', env.global_time, info, cumulative_reward)
         if robot.visible and info == 'reach goal':
             human_times = env.get_human_times()
@@ -138,7 +139,6 @@ def main(args):
             b = [i * 0.01 for i in range(101)]
             n, bins, patches = plt.hist(test_angle_seeds, b, facecolor='g')
             plt.savefig(os.path.join(args.model_dir, 'test_scene_hist.png'))
-            print(env.test_scene_seeds)
             plt.close()
 
 if __name__ == '__main__':
@@ -155,7 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--square', default=False, action='store_true')
     parser.add_argument('--circle', default=False, action='store_true')
     parser.add_argument('--video_file', type=str, default=None)
-    parser.add_argument('--video_dir', type=str, default='/cs/vml4/shah/CrowdNavExt/crowd_nav/data/uygrandcentralsim')
+    parser.add_argument('--video_dir', type=str, default=None)
     parser.add_argument('--traj', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--human_num', type=int, default=None)

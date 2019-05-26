@@ -90,7 +90,7 @@ class Trainer(object):
 
         return average_epoch_loss
     
-    def optmize_pretend_batch(self, num_batches):
+    def optimize_pretend_batch(self, num_batches):
         self.pretend_batch_size = 100
         self.batch_size = 1
 
