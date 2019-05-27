@@ -67,7 +67,7 @@ class BasePolicyConfig(object):
     action_space.speed_samples = 5
     action_space.rotation_samples = 16
     action_space.sampling = 'exponential'
-    action_space.query_env = True
+    action_space.query_env = False
     action_space.rotation_constraint = np.pi / 3
 
     cadrl = Config()
