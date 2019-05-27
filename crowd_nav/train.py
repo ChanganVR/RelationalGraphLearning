@@ -17,7 +17,19 @@ from crowd_nav.utils.explorer import Explorer
 from crowd_nav.policy.policy_factory import policy_factory
 
 
+def set_random_seeds(seed):
+    """
+    Sets the random seeds for pytorch cpu and gpu
+    """
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    return None
+
+
 def main(args):
+    import time
+    # set_random_seeds(args.randomseed)
+    set_random_seeds(time.time())
     # configure paths
     make_new_dir = True
     if os.path.exists(args.output_dir):
@@ -74,6 +86,7 @@ def main(args):
                         format='%(asctime)s, %(levelname)s: %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     repo = git.Repo(search_parent_directories=True)
     logging.info('Current git head hash code: {}'.format(repo.head.object.hexsha))
+    logging.info('Current config content is :{}'.format(config))
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
     logging.info('Using device: %s', device)
     writer = SummaryWriter(log_dir=args.output_dir)
@@ -108,6 +121,7 @@ def main(args):
     epsilon_end = train_config.train.epsilon_end
     epsilon_decay = train_config.train.epsilon_decay
     checkpoint_interval = train_config.train.checkpoint_interval
+    train_with_pretend_batch = train_config.train.train_with_pretend_batch
 
     # configure trainer and explorer
     memory = ReplayMemory(capacity)
@@ -142,7 +156,10 @@ def main(args):
         il_policy.safety_space = safety_space
         robot.set_policy(il_policy)
         explorer.run_k_episodes(il_episodes, 'train', update_memory=True, imitation_learning=True)
-        trainer.optimize_epoch(il_epochs, writer)
+        if train_with_pretend_batch:
+            trainer.optimize_epoch_pretend_batch(il_epochs, writer)
+        else:
+            trainer.optimize_epoch(il_epochs, writer)
         torch.save(model.state_dict(), il_weight_file)
         logging.info('Finish imitation learning. Weights saved.')
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
@@ -163,6 +180,7 @@ def main(args):
     best_val_reward = -1
     best_val_model = None
     # evaluate the model after imitation learning
+
     if episode % evaluation_interval == 0:
         logging.info('Evaluate the model instantly after imitation learning on the validation cases')
         sr, cr, time, reward, avg_return = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
@@ -171,6 +189,19 @@ def main(args):
         writer.add_scalar('val/time', time, episode // evaluation_interval)
         writer.add_scalar('val/reward', reward, episode // evaluation_interval)
         writer.add_scalar('val/avg_return', avg_return, episode // evaluation_interval)
+
+        if args.test_after_every_eval:
+            sr, cr, time, reward = explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, print_failure=True)
+            writer.add_scalar('test/success_rate', sr, episode // evaluation_interval)
+            writer.add_scalar('test/collision_rate', cr, episode // evaluation_interval)
+            writer.add_scalar('test/time', time, episode // evaluation_interval)
+            writer.add_scalar('test/reward', reward, episode // evaluation_interval)
+
+    if args.save_stable_models:
+        stable_srs = []
+        stable_crs = []
+        stable_rewards = []
+        stable_times = []
 
     for e_id in range(rl_train_epochs):
         episode = 0
@@ -193,7 +224,10 @@ def main(args):
             writer.add_scalar('train/reward', reward, episode + train_episodes * e_id)
             writer.add_scalar('train/avg_return', avg_return, episode + train_episodes * e_id)
 
-            trainer.optimize_batch(train_batches)
+            if train_with_pretend_batch:
+                trainer.optimize_pretend_batch(train_batches)
+            else:
+                trainer.optimize_batch(train_batches)
             episode += 1
 
             if (episode + train_episodes * e_id) % target_update_interval == 0:
@@ -210,11 +244,50 @@ def main(args):
                 if (episode + train_episodes * e_id) % checkpoint_interval == 0 and reward > best_val_reward:
                     best_val_reward = reward
                     best_val_model = copy.deepcopy(model.state_dict())
+            # test after every evaluation to check how the generalization performance evolves
+                if args.test_after_every_eval:
+                    sr, cr, time, reward, avg_return = explorer.run_k_episodes(
+                        env.case_size['test'], 'test', episode=episode, epoch=e_id, print_failure=True)
+                    writer.add_scalar('test/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
+                    writer.add_scalar('test/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
+                    writer.add_scalar('test/time', time, (episode + train_episodes * e_id) // evaluation_interval)
+                    writer.add_scalar('test/reward', reward, (episode + train_episodes * e_id) // evaluation_interval)
+                    writer.add_scalar('test/avg_return', avg_return, (episode + train_episodes * e_id) // evaluation_interval)
 
             if episode != 0 and (episode + train_episodes * e_id) % checkpoint_interval == 0:
                 current_checkpoint = (episode + train_episodes * e_id) // checkpoint_interval - 1
                 save_every_checkpoint_rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(current_checkpoint) + '.pth'
                 torch.save(model.state_dict(), save_every_checkpoint_rl_weight_file)
+
+            if args.save_stable_models:
+                stable_checkpoint_interval = 20
+                save_after = 0.9
+                total_stable_models = train_episodes * (1 - save_after) // stable_checkpoint_interval
+                test_size = int(env_config.env.test_size // total_stable_models)
+                logging.info('check the test_size: {}'.format(test_size))
+                logging.info('save_after: {}'.format(save_after))
+                logging.info('stable_checkpoint_interval: {}'.format(stable_checkpoint_interval))
+                if (episode + train_episodes * e_id) >= train_episodes * save_after:
+                    if episode != 0 and (episode + train_episodes * e_id) % stable_checkpoint_interval == 0:
+                        current_stable_checkpoint = (episode + train_episodes * e_id) // stable_checkpoint_interval - 1
+                        save_every_stable_rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(episode) + '.pth'
+                        torch.save(model.state_dict(), save_every_stable_rl_weight_file)
+                        logging.info('check the env.case_encounter: {}'.format(env.case_counter['test']))
+                        sr, cr, time, reward = explorer.run_k_episodes(test_size, 'test', episode=episode, epoch=e_id, print_failure=True)
+                        stable_srs.append(sr)
+                        stable_crs.append(cr)
+                        stable_times.append(time)
+                        stable_rewards.append(reward)
+                        writer.add_scalar('stable_test/success_rate', sr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+                        writer.add_scalar('stable_test/collision_rate', cr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+                        writer.add_scalar('stable_test/time', time, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+                        writer.add_scalar('stable_test/reward', reward, (episode + train_episodes * e_id) // stable_checkpoint_interval)
+
+    if args.save_stable_models:
+        logging.info('the {} stable models average reward on the test scenarios are :{}'.format(len(stable_rewards), sum(stable_rewards)/len(stable_rewards)))
+        logging.info('the {} stable models average sr on the test scenarios are :{}'.format(len(stable_srs), sum(stable_srs) /len(stable_srs)))
+        logging.info('the {} stable models average cr on the test scenarios are :{}'.format(len(stable_crs), sum(stable_crs) /len(stable_crs)))
+        logging.info('the {} stable models average time on the test scenarios are :{}'.format(len(stable_times), sum(stable_times) /len(stable_times)))
 
     # test with the best val model
     if best_val_model is not None:
@@ -235,6 +308,9 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--save_scene', default=False, action='store_true')
+    parser.add_argument('--test_after_every_eval', default=False, action='store_true')
+    # parser.add_argument('--randomseed', default=None)
+    parser.add_argument('--save_stable_models', default=False, action='store_true')
 
     # arguments for GCN
     parser.add_argument('--X_dim', type=int, default=32)
@@ -242,6 +318,9 @@ if __name__ == '__main__':
     parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
     parser.add_argument('--layerwise_graph', default=False, action='store_true')
     parser.add_argument('--skip_connection', default=False, action='store_true')
+
+    # arguments for training with scenarios with variable number of pedestrians in one episode
+    parser.add_argument('--pretend_batch', default=False, action='store_true')
 
     sys_args = parser.parse_args()
 

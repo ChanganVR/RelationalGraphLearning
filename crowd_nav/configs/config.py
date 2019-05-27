@@ -86,7 +86,7 @@ class BasePolicyConfig(object):
     srl.mlp1_dims = [150, 100, 100, 50]
     srl.mlp2_dims = [150, 100, 100, 1]
     srl.multiagent_training = True
-    srl.with_om = False
+    srl.with_om = True
 
     sarl = Config()
     sarl.mlp1_dims = [150, 100]
@@ -94,7 +94,7 @@ class BasePolicyConfig(object):
     sarl.attention_dims = [100, 100, 1]
     sarl.mlp3_dims = [150, 100, 100, 1]
     sarl.multiagent_training = True
-    sarl.with_om = False
+    sarl.with_om = True
     sarl.with_global_state = True
 
     gcn = Config()
@@ -109,6 +109,14 @@ class BasePolicyConfig(object):
     gcn.similarity_function = 'embedded_gaussian'
     gcn.layerwise_graph = True
     gcn.skip_connection = False
+
+    gnn = Config()
+    gnn.multiagent_training = True
+    gnn.node_dim = 32
+    gnn.wr_dims = [64, gnn.node_dim]
+    gnn.wh_dims = [64, gnn.node_dim]
+    gnn.edge_dim = 32
+    gnn.planning_dims = [150, 100, 100, 1]
 
     def __init__(self, debug=False):
         pass
@@ -129,7 +137,7 @@ class BaseTrainConfig(object):
     train = Config()
     train.rl_train_epochs = 1
     train.rl_learning_rate = 0.001
-    # number of batches to train at the end of training episode
+    # number of batches to train at the end of training episode il_episodes
     train.train_batches = 100
     # training episodes in outer loop
     train.train_episodes = 10000
@@ -143,6 +151,8 @@ class BaseTrainConfig(object):
     train.epsilon_end = 0.1
     train.epsilon_decay = 4000
     train.checkpoint_interval = 1000
+
+    train.train_with_pretend_batch = False
 
     def __init__(self, debug=False):
         if debug:

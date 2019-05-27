@@ -4,6 +4,7 @@ import importlib.util
 import os
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 import gym
 from crowd_nav.utils.explorer import Explorer
 from crowd_nav.policy.policy_factory import policy_factory
@@ -20,7 +21,10 @@ def main(args):
     logging.info('Using device: %s', device)
 
     if args.model_dir is not None:
-        config_file = os.path.join(args.model_dir, 'config.py')
+        if args.config is not None:
+            config_file = args.config
+        else:
+            config_file = os.path.join(args.model_dir, 'config.py')
         if args.il:
             model_weights = os.path.join(args.model_dir, 'il_model.pth')
             logging.info('Loaded IL weights')
@@ -68,6 +72,9 @@ def main(args):
         env.test_scenario = 'square_crossing'
     if args.circle:
         env.test_scenario = 'circle_crossing'
+    if args.test_scenario is not None:
+        env.test_scenario = args.test_scenario
+
     robot = Robot(env_config, 'robot')
     robot.set_policy(policy)
 
@@ -115,22 +122,29 @@ def main(args):
                 if args.policy == 'gcn':
                     args.video_file = os.path.join(args.video_dir, args.policy + '_' + policy_config.gcn.similarity_function)
                 else:
-                    args.video_file = os.path.join(args.video_file + args.policy)
-                args.video_file = args.video_file + '_' + str(args.test_case) + '.mp4'
-
-            env.render('video', args.video_file)
-
+                    args.video_file = os.path.join(args.video_dir, args.policy)
+                args.video_file = args.video_file + '_' + args.phase + '_' + str(args.test_case) + '.mp4'
+            if env.current_scenario.startswith('realsim'):
+                env.render('dynamic_video', args.video_file)
+            else:
+                env.render('video', args.video_file)
         logging.info('It takes %.2f seconds to finish. Final status is %s, cumulative_reward is %f', env.global_time, info, cumulative_reward)
         if robot.visible and info == 'reach goal':
             human_times = env.get_human_times()
             logging.info('Average time for humans to reach goal: %.2f', sum(human_times) / len(human_times))
     else:
         explorer.run_k_episodes(env.case_size[args.phase], args.phase, print_failure=True)
+        if args.plot_test_scenarios_hist:
+            test_angle_seeds = np.array(env.test_scene_seeds)
+            b = [i * 0.01 for i in range(101)]
+            n, bins, patches = plt.hist(test_angle_seeds, b, facecolor='g')
+            plt.savefig(os.path.join(args.model_dir, 'test_scene_hist.png'))
+            plt.close()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
-    parser.add_argument('--config', type=str, default='icra_config.py')
+    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
     parser.add_argument('--policy', type=str, default='gcn')
     parser.add_argument('--model_dir', type=str, default=None)
     parser.add_argument('--il', default=False, action='store_true')
@@ -148,7 +162,10 @@ if __name__ == '__main__':
     parser.add_argument('--human_num', type=int, default=None)
     parser.add_argument('--group_size', type=int, default=None)
     parser.add_argument('--group_num', type=int, default=None)
-    parser.add_argument('--safety_space', type=float, default=None)
+    parser.add_argument('--safety_space', type=float, default=0.2)
+    #parser.add_argument('--test_scenario', type=str, default='realsim_GrandCentral')
+    parser.add_argument('--test_scenario', type=str, default=None)
+    parser.add_argument('--plot_test_scenarios_hist', default=True, action='store_true')
 
     sys_args = parser.parse_args()
 

@@ -4,6 +4,7 @@ from crowd_nav.policy.lstm_rl import LstmRL
 from crowd_nav.policy.sarl import SARL
 from crowd_nav.policy.gcn import GCN
 
+
 policy_factory['cadrl'] = CADRL
 policy_factory['lstm_rl'] = LstmRL
 policy_factory['sarl'] = SARL
