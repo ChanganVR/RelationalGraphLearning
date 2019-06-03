@@ -134,6 +134,7 @@ class CrowdSim(gym.Env):
             human.sample_random_attributes()
 
         if self.current_scenario == 'circle_crossing':
+
             while True:
                 angle = np.random.random() * np.pi * 2
                 # add some noise to simulate all the possible cases robot could meet with human
@@ -151,6 +152,7 @@ class CrowdSim(gym.Env):
                 if not collide:
                     break
             human.set(px, py, -px, -py, 0, 0, 0)
+
 
         elif self.current_scenario == 'square_crossing':
             if np.random.random() > 0.5:
@@ -326,11 +328,14 @@ class CrowdSim(gym.Env):
 
         base_seed = {'train': self.case_capacity['val'] + self.case_capacity['test'],
                      'val': 0, 'test': self.case_capacity['val']}
-
+        #self.robot.set(-self.circle_radius , 0, self.circle_radius-2, -2, 0, 0, np.pi / 2)
         self.robot.set(0, -self.circle_radius, 0, self.circle_radius, 0, 0, np.pi / 2)
         if self.case_counter[phase] >= 0:
+
             np.random.seed(base_seed[phase] + self.case_counter[phase])
             random.seed(base_seed[phase] + self.case_counter[phase])
+
+
             if phase == 'test':
                 logging.debug('current test seed is:{}'.format(base_seed[phase] + self.case_counter[phase]))
             if not self.robot.policy.multiagent_training and phase in ['train', 'val']:
@@ -366,15 +371,16 @@ class CrowdSim(gym.Env):
                     base_seed = {'train': self.case_size['val'] + self.case_size['test'],
                                  'val': 0, 'test': self.case_size['val']}
 
+                    GC_IMAGE_WIDTH = 1920
+                    GC_IMAGE_HEIGHT = 1080
+                    self.panel_height = GC_IMAGE_HEIGHT
+                    self.panel_width = GC_IMAGE_WIDTH
+                    self.panel_scale = 50
+                    self.robot.set(0, -self.panel_height / (2 * self.panel_scale), 0, 7
+                                   , 0, 0, np.pi / 2)
                     if self.p_data_list == None:
                         # read/preprocess some initialization data about grand central data sim
-                        GC_IMAGE_WIDTH = 1920
-                        GC_IMAGE_HEIGHT = 1080
-                        self.panel_height = GC_IMAGE_HEIGHT
-                        self.panel_width = GC_IMAGE_WIDTH
-                        self.panel_scale = 50
-                        self.robot.set(0, -self.panel_height / (2 * self.panel_scale ), 0, 7
-                                       , 0, 0, np.pi / 2)
+
                         data_file = '/cs/vml4/shah/CrowdNavExt/crowd_nav/data/sim_data/GC_meta_data.json'
                         with open(data_file, 'r') as fin:
                             data = json.load(fin)
@@ -462,6 +468,14 @@ class CrowdSim(gym.Env):
     def onestep_lookahead(self, action):
         return self.step(action, update=False)
 
+    def nsteps_lookahead(self, actions):
+        for i in range(len(actions)):
+            if i <= len(actions) - 2:
+                self.step(actions[i], update=True)
+            else:
+                return self.step(actions[i], update=False)
+
+
     def step(self, action, update=True):
         """
         Compute actions for all agents, detect collision, update environment and return (ob, reward, done, info)
@@ -497,7 +511,7 @@ class CrowdSim(gym.Env):
 
             if update:
                 self.dynamic_human_num.append(len(self.humans))
-
+        logging.debug('at time :{}, there are :{}'.format(t_in_real, len(self.humans)))
         if self.centralized_planning:
             agent_states = [human.get_full_state() for human in self.humans]
             if self.robot.visible:
@@ -529,7 +543,8 @@ class CrowdSim(gym.Env):
             closest_dist = point_to_segment_dist(px, py, ex, ey, 0, 0) - human.radius - self.robot.radius
             if closest_dist < 0:
                 collision = True
-                logging.info("Collision: distance between robot and p{} is {:.2E} at time {:.2E}".format(human.id, closest_dist, self.global_time))
+                if update:
+                    logging.info("Collision: distance between robot and p{} is {:.2E} at time {:.2E}".format(human.id, closest_dist, self.global_time))
                 break
             elif closest_dist < dmin:
                 dmin = closest_dist
@@ -611,8 +626,9 @@ class CrowdSim(gym.Env):
             # remove the added new human and add the removed human cause this is for lookahead
                 for remove_p in remove_p_set:
                     self.humans.append(remove_p)
-                for human in new_humans:
-                    self.humans.remove(human)
+                if len(new_p_set)>0:
+                    for human in new_humans:
+                        self.humans.remove(human)
 
         return ob, reward, done, info
 
