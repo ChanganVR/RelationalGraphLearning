@@ -14,7 +14,7 @@ class PolicyConfig(BasePolicyConfig):
         # gcn
         self.gcn.num_layer = 2
         self.gcn.X_dim = 32
-        self.gcn.similarity_function = 'gaussian'
+        self.gcn.similarity_function = 'embedded_gaussian'
         self.gcn.layerwise_graph = False
         self.gcn.skip_connection = False
 

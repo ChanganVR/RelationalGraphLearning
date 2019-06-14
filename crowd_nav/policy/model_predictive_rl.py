@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import numpy as np
 import itertools
 from crowd_sim.envs.policy.policy import Policy
@@ -22,7 +21,6 @@ class ModelPredictiveRL(Policy):
         self.sampling = None
         self.speed_samples = None
         self.rotation_samples = None
-        self.query_env = None
         self.action_space = None
         self.rotation_constraint = None
         self.speeds = None
@@ -30,7 +28,6 @@ class ModelPredictiveRL(Policy):
         self.action_values = None
         self.robot_state_dim = 9
         self.human_state_dim = 5
-        self.joint_state_dim = self.robot_state_dim + self.human_state_dim
         # TODO
         self.v_pref = 1
         self.value_estimator = None
@@ -40,7 +37,7 @@ class ModelPredictiveRL(Policy):
         self.set_common_parameters(config)
         graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
         self.value_estimator = ValueEstimator(config, graph_model)
-        self.state_predictor = StatePredictor(config, graph_model, self.human_state_dim)
+        self.state_predictor = StatePredictor(config, graph_model, self.time_step)
         self.model = [graph_model, self.value_estimator.value_network, self.state_predictor.human_motion_predictor]
 
     def set_common_parameters(self, config):
@@ -49,7 +46,6 @@ class ModelPredictiveRL(Policy):
         self.sampling = config.action_space.sampling
         self.speed_samples = config.action_space.speed_samples
         self.rotation_samples = config.action_space.rotation_samples
-        self.query_env = config.action_space.query_env
         self.rotation_constraint = config.action_space.rotation_constraint
 
     def set_device(self, device):
@@ -59,6 +55,10 @@ class ModelPredictiveRL(Policy):
 
     def set_epsilon(self, epsilon):
         self.epsilon = epsilon
+
+    def set_time_step(self, time_step):
+        self.time_step = time_step
+        self.state_predictor.time_step = time_step
 
     def get_normalized_gamma(self):
         return pow(self.gamma, self.time_step * self.v_pref)
@@ -87,74 +87,6 @@ class ModelPredictiveRL(Policy):
         self.speeds = speeds
         self.rotations = rotations
         self.action_space = action_space
-
-    def propagate(self, state, action):
-        if isinstance(state, ObservableState):
-            # propagate state of humans
-            next_px = state.px + action.vx * self.time_step
-            next_py = state.py + action.vy * self.time_step
-            next_state = ObservableState(next_px, next_py, action.vx, action.vy, state.radius)
-        elif isinstance(state, FullState):
-            # propagate state of current agent
-            # perform action without rotation
-            if self.kinematics == 'holonomic':
-                next_px = state.px + action.vx * self.time_step
-                next_py = state.py + action.vy * self.time_step
-                next_state = FullState(next_px, next_py, action.vx, action.vy, state.radius,
-                                       state.gx, state.gy, state.v_pref, state.theta)
-            else:
-                next_theta = state.theta + action.r
-                next_vx = action.v * np.cos(next_theta)
-                next_vy = action.v * np.sin(next_theta)
-                next_px = state.px + next_vx * self.time_step
-                next_py = state.py + next_vy * self.time_step
-                next_state = FullState(next_px, next_py, next_vx, next_vy, state.radius, state.gx, state.gy,
-                                       state.v_pref, next_theta)
-        else:
-            raise ValueError('Type error')
-
-        return next_state
-
-    def rotate(self, state):
-        """
-        Transform the coordinate to agent-centric.
-        Input state tensor is of size (batch_size, state_length)
-
-        In GNN, the joint state is discarded, e.g., distance to the robot and the radius_sum
-        So this transformation only transforms the coordinates of the humans to be robot-centric.
-
-        """
-        # 'px', 'py', 'vx', 'vy', 'radius', 'gx', 'gy', 'v_pref', 'theta', 'px1', 'py1', 'vx1', 'vy1', 'radius1'
-        #  0     1      2     3      4        5     6      7         8       9     10      11     12       13
-        batch = state.shape[0]
-        dx = (state[:, 5] - state[:, 0]).reshape((batch, -1))
-        dy = (state[:, 6] - state[:, 1]).reshape((batch, -1))
-        rot = torch.atan2(state[:, 6] - state[:, 1], state[:, 5] - state[:, 0])
-
-        dg = torch.norm(torch.cat([dx, dy], dim=1), 2, dim=1, keepdim=True)
-        v_pref = state[:, 7].reshape((batch, -1))
-        vx = (state[:, 2] * torch.cos(rot) + state[:, 3] * torch.sin(rot)).reshape((batch, -1))
-        vy = (state[:, 3] * torch.cos(rot) - state[:, 2] * torch.sin(rot)).reshape((batch, -1))
-
-        radius = state[:, 4].reshape((batch, -1))
-        if self.kinematics == 'unicycle':
-            theta = (state[:, 8] - rot).reshape((batch, -1))
-        else:
-            theta = torch.zeros_like(v_pref)
-
-        vx1 = (state[:, 11] * torch.cos(rot) + state[:, 12] * torch.sin(rot)).reshape((batch, -1))
-        vy1 = (state[:, 12] * torch.cos(rot) - state[:, 11] * torch.sin(rot)).reshape((batch, -1))
-        px1 = (state[:, 9] - state[:, 0]) * torch.cos(rot) + (state[:, 10] - state[:, 1]) * torch.sin(rot)
-        px1 = px1.reshape((batch, -1))
-        py1 = (state[:, 10] - state[:, 1]) * torch.cos(rot) - (state[:, 9] - state[:, 0]) * torch.sin(rot)
-        py1 = py1.reshape((batch, -1))
-        radius1 = state[:, 13].reshape((batch, -1))
-        # radius_sum = radius + radius1
-        # da = torch.norm(torch.cat([(state[:, 0] - state[:, 9]).reshape((batch, -1)), (state[:, 1] - state[:, 10]).
-        #                           reshape((batch, -1))], dim=1), 2, dim=1, keepdim=True)
-        # new_state = torch.cat([dg, v_pref, theta, radius, vx, vy, px1, py1, vx1, vy1, radius1, da, radius_sum], dim=1)
-        new_state = torch.cat([dg, v_pref, theta, radius, vx, vy, px1, py1, vx1, vy1, radius1], dim=1)
-        return new_state
 
     def predict(self, state):
         """
@@ -187,7 +119,7 @@ class ModelPredictiveRL(Policy):
                 human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]).\
                     to(self.device).unsqueeze(0)
                 next_state = self.state_predictor((robot_state_tensor, human_states_tensor), action)
-                value = self.estimate_reward(state, action) + self.get_normalized_gamma() \
+                value = self.estimate_reward(state) + self.get_normalized_gamma() \
                         * self.V_planning(next_state, 2)
                 if value > max_value:
                     max_value = value
@@ -208,12 +140,15 @@ class ModelPredictiveRL(Policy):
         sums = []
         for action in action_space:
             next_state_est = self.state_predictor(state, action)
-            reward_est = self.estimate_reward(state, action)
+            reward_est = self.estimate_reward(state)
             sums.append(reward_est + self.get_normalized_gamma() * self.V_planning(next_state_est, depth - 1))
 
         return self.value_estimator(state) / depth + (depth - 1) / depth * max(sums)
 
-    def estimate_reward(self, state, action):
+    def estimate_reward(self, state):
+        """ If the time step is small enough, it's okay to model agent as linear movement during this period
+
+        """
         # TODO: to create a unified version
         # collision detection
         if isinstance(state, list):
@@ -226,6 +161,7 @@ class ModelPredictiveRL(Policy):
                                             human_state[4]) for human_state in human_states]
         else:
             robot_state, human_states = state.robot_state, state.human_states
+
         dmin = float('inf')
         collision = False
         for i, human in enumerate(human_states):
@@ -251,7 +187,7 @@ class ModelPredictiveRL(Policy):
 
     def transform(self, state):
         """
-        Take the state passed from agent and transform it to the input of value network
+        Take the JointState to tensors
 
         :param state:
         :return: tensor of shape (# of agent, len(state))

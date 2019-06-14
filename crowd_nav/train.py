@@ -104,6 +104,7 @@ def main(args):
     env = gym.make('CrowdSim-v0')
     env.configure(env_config)
     robot = Robot(env_config, 'robot')
+    robot.time_step = env.time_step
     env.set_robot(robot)
     env.save_scene_dir = save_scene_dir
 

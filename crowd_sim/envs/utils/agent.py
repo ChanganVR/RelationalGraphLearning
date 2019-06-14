@@ -33,6 +33,7 @@ class Agent(object):
             'visible' if self.visible else 'invisible', self.kinematics))
 
     def set_policy(self, policy):
+        policy.set_time_step(self.time_step)
         self.policy = policy
         self.kinematics = policy.kinematics
 

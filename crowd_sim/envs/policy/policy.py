@@ -29,6 +29,9 @@ class Policy(object):
     def set_env(self, env):
         self.env = env
 
+    def set_time_step(self, time_step):
+        self.time_step = time_step
+
     @abc.abstractmethod
     def get_model(self):
         return

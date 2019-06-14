@@ -100,11 +100,6 @@ class RGL(nn.Module):
         # compute feature matrix X
         robot_state_embedings = self.w_r(robot_state)
         human_state_embedings = self.w_h(human_states)
-        # if len(robot_state_embedings.shape) == 2 and len(human_state_embedings.shape) == 2:
-        #     X = torch.cat([robot_state_embedings.unsqueeze(0), human_state_embedings.unsqueeze(0)], dim=1)
-        # elif len(robot_state_embedings.shape) == 2 and len(human_state_embedings.shape) == 3:
-        #     X = torch.cat([robot_state_embedings.unsqueeze(0), human_state_embedings], dim=1)
-        # else:
         X = torch.cat([robot_state_embedings, human_state_embedings], dim=1)
 
         # compute matrix A
