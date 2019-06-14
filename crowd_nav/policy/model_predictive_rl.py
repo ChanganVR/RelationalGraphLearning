@@ -28,13 +28,14 @@ class ModelPredictiveRL(Policy):
         self.action_values = None
         self.robot_state_dim = 9
         self.human_state_dim = 5
-        # TODO
         self.v_pref = 1
         self.value_estimator = None
         self.state_predictor = None
+        self.planning_depth = None
 
     def configure(self, config):
         self.set_common_parameters(config)
+        self.planning_depth = config.model_predictive_rl.planning_depth
         graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
         self.value_estimator = ValueEstimator(config, graph_model)
         self.state_predictor = StatePredictor(config, graph_model, self.time_step)
@@ -120,7 +121,7 @@ class ModelPredictiveRL(Policy):
                     to(self.device).unsqueeze(0)
                 next_state = self.state_predictor((robot_state_tensor, human_states_tensor), action)
                 value = self.estimate_reward(state) + self.get_normalized_gamma() \
-                        * self.V_planning(next_state, 2)
+                        * self.V_planning(next_state, self.planning_depth)
                 if value > max_value:
                     max_value = value
                     max_action = action

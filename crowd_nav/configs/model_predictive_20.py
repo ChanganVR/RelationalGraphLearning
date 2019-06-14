@@ -19,10 +19,11 @@ class PolicyConfig(BasePolicyConfig):
         self.gcn.skip_connection = False
 
         self.action_space.kinematics = 'unicycle'
-        self.action_space.speed_samples = 5
-        self.action_space.rotation_samples = 7
+        self.action_space.speed_samples = 3
+        self.action_space.rotation_samples = 5
 
         self.model_predictive_rl = Config()
+        self.model_predictive_rl.planning_depth = 2
         self.model_predictive_rl.motion_predictor_dims = [64, 5]
         self.model_predictive_rl.value_network_dims = [32, 100, 100, 1]
 
