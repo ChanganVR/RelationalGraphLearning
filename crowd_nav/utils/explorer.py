@@ -121,25 +121,30 @@ class Explorer(object):
         if self.memory is None or self.gamma is None:
             raise ValueError('Memory or gamma value is not set!')
         
-        for i, state in enumerate(states):
+        for i, state in enumerate(states[:-1]):
             reward = rewards[i]
 
             # VALUE UPDATE
             if imitation_learning:
                 # define the value of states in IL as cumulative discounted rewards, which is the same in RL
                 state = self.target_policy.transform(state)
+                next_state = self.target_policy.transform(states[i+1])
                 value = sum([pow(self.gamma, (t - i) * self.robot.time_step * self.robot.v_pref) * reward *
                              (1 if t >= i else 0) for t, reward in enumerate(rewards)])
             else:
+                next_state = states[i+1]
+                next_robot_state = states[i+1][0].unsqueeze(0)
+                next_human_states = states[i+1][1].unsqueeze(0)
                 if i == len(states) - 1:
                     # terminal state
                     value = reward
                 else:
-                    next_state = states[i + 1]
                     gamma_bar = pow(self.gamma, self.robot.time_step * self.robot.v_pref)
-                    value = reward + gamma_bar * self.target_model(next_state).data.item()
+                    value = reward + gamma_bar * self.target_model((next_robot_state, next_human_states)).data.item()
             value = torch.Tensor([value]).to(self.device)
-            self.memory.push((*state, value))
+            # self.memory.push((*state, value))
+
+            self.memory.push((state[0], state[1], value, next_state[1]))
 
 
 def average(input_list):

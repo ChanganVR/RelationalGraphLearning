@@ -183,7 +183,7 @@ class ModelPredictiveRL(Policy):
                 # TODO: separate features instead of concatenating
                 # state_tensor = torch.cat([torch.Tensor([state.robot_state + human_state]).to(self.device)
                 #                          for human_state in state.human_states], dim=0)
-                robot_state_tensor = torch.Tensor(state.robot_state.to_tuple()).to(self.device).unsqueeze(0)
+                robot_state_tensor = torch.Tensor([state.robot_state.to_tuple()]).to(self.device).unsqueeze(0)
                 human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]).\
                     to(self.device).unsqueeze(0)
                 next_state = self.state_predictor((robot_state_tensor, human_states_tensor), action)
@@ -254,12 +254,9 @@ class ModelPredictiveRL(Policy):
         Take the state passed from agent and transform it to the input of value network
 
         :param state:
-        :return: tensor of shape (# of humans, len(state))
+        :return: tensor of shape (# of agent, len(state))
         """
-        # state_tensor = torch.cat([torch.Tensor([state.robot_state + human_state]).to(self.device)
-        #                           for human_state in state.human_states], dim=0)
-        # rotated_state_tensor = self.rotate(state_tensor)
-        robot_state_tensor = torch.Tensor(state.robot_state.to_tuple()).to(self.device).unsqueeze(0)
+        robot_state_tensor = torch.Tensor([state.robot_state.to_tuple()]).to(self.device)
         human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]). \
             to(self.device)
 

@@ -17,15 +17,29 @@ class StatePredictor(nn.Module):
         self.human_motion_predictor = mlp(config.gcn.X_dim, config.model_predictive_rl.motion_predictor_dims)
 
     def forward(self, state, action, time_step=0.25):
+        """ Predict the next state tensor given current state as input.
+
+        :return: tensor of shape (batch_size, # of agents, feature_size)
+        """
+        assert len(state[0].shape) == 3
+        assert len(state[1].shape) == 3
+
         state_embedding = self.graph_model(state)
         # extract the robot state
-        next_robot_state = self.compute_next_state(state[0], action)
-        next_human_states = self.human_motion_predictor(state_embedding)
+        if action is None:
+            next_robot_state = None
+        else:
+            # only for training the human motion predictor
+            next_robot_state = self.compute_next_state(state[0], action)
+        next_human_states = self.human_motion_predictor(state_embedding)[:, 1:, :]
 
         next_observation = [next_robot_state, next_human_states]
         return next_observation
 
     def compute_next_state(self, robot_state, action):
+        # currently it can not perform parallel computation
+        assert robot_state.shape[0] == 1
+
         # px, py, vx, vy, radius, gx, gy, v_pref, theta
         next_state = robot_state.clone().squeeze()
         if self.kinematics == 'holonomic':
@@ -37,5 +51,5 @@ class StatePredictor(nn.Module):
             next_state[2] = np.cos(next_state[7]) * action.v
             next_state[3] = np.sin(next_state[7]) * action.v
 
-        return next_state.unsqueeze(0)
+        return next_state.unsqueeze(0).unsqueeze(0)
 

@@ -89,19 +89,23 @@ class RGL(nn.Module):
         return normalized_A
 
     def forward(self, state):
+        """
+        Embed current state tensor pair (robot_state, human_states) into a latent space
+        Each tensor is of shape (batch_size, # of agent, features)
+        :param state:
+        :return:
+        """
         robot_state, human_states = state
-        # robot_state = state[:, 0, :self.robot_state_dim]
-        # human_states = state[:, :, self.robot_state_dim:]
 
         # compute feature matrix X
         robot_state_embedings = self.w_r(robot_state)
         human_state_embedings = self.w_h(human_states)
-        if len(robot_state_embedings.shape) == 2 and len(human_state_embedings.shape) == 2:
-            X = torch.cat([robot_state_embedings.unsqueeze(0), human_state_embedings.unsqueeze(0)], dim=1)
-        elif len(robot_state_embedings.shape) == 2 and len(human_state_embedings.shape) == 3:
-            X = torch.cat([robot_state_embedings.unsqueeze(0), human_state_embedings], dim=1)
-        else:
-            X = torch.cat([robot_state_embedings, human_state_embedings], dim=1)
+        # if len(robot_state_embedings.shape) == 2 and len(human_state_embedings.shape) == 2:
+        #     X = torch.cat([robot_state_embedings.unsqueeze(0), human_state_embedings.unsqueeze(0)], dim=1)
+        # elif len(robot_state_embedings.shape) == 2 and len(human_state_embedings.shape) == 3:
+        #     X = torch.cat([robot_state_embedings.unsqueeze(0), human_state_embedings], dim=1)
+        # else:
+        X = torch.cat([robot_state_embedings, human_state_embedings], dim=1)
 
         # compute matrix A
         normalized_A = self.compute_similarity_matrix(X)
