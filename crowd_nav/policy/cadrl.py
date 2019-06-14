@@ -86,6 +86,9 @@ class CADRL(Policy):
     def set_epsilon(self, epsilon):
         self.epsilon = epsilon
 
+    def get_model(self):
+        return self.model
+
     def build_action_space(self, v_pref):
         """
         Action space consists of 25 uniformly sampled actions in permitted range and 25 randomly sampled actions.

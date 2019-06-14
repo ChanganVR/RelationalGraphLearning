@@ -137,9 +137,9 @@ class Explorer(object):
                 else:
                     next_state = states[i + 1]
                     gamma_bar = pow(self.gamma, self.robot.time_step * self.robot.v_pref)
-                    value = reward + gamma_bar * self.target_model(next_state.unsqueeze(0)).data.item()
+                    value = reward + gamma_bar * self.target_model(next_state).data.item()
             value = torch.Tensor([value]).to(self.device)
-            self.memory.push((state, value))
+            self.memory.push((*state, value))
 
 
 def average(input_list):

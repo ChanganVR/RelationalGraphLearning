@@ -36,7 +36,7 @@ class Trainer(object):
         if self.optimizer is None:
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pack_batch)
         logging.info('start to optimize epoch in pretend batch manner')
         average_epoch_loss = 0
         for epoch in range(num_epochs):
@@ -74,15 +74,15 @@ class Trainer(object):
         if self.optimizer is None:
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True)
         average_epoch_loss = 0
         for epoch in range(num_epochs):
             epoch_loss = 0
             logging.debug('{}-th epoch starts'.format(epoch))
             for data in self.data_loader:
-                inputs, values = data
+                robot_states, human_states, values = data
                 self.optimizer.zero_grad()
-                outputs = self.model(inputs)
+                outputs = self.model((robot_states, human_states))
                 values = values.to(self.device)
                 loss = self.criterion(outputs, values)
                 loss.backward()
@@ -102,7 +102,7 @@ class Trainer(object):
         if self.optimizer is None:
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pack_batch)
         logging.info('start to optimize:{} batches in pretend batch manner'.format(self.batch_size))
         losses = 0
         batch_count = 0
@@ -140,13 +140,13 @@ class Trainer(object):
         if self.optimizer is None:
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True)
         losses = 0
         batch_count = 0
         for data in self.data_loader:
-            inputs, values = data
+            robot_states, human_states, values = data
             self.optimizer.zero_grad()
-            outputs = self.model(inputs)
+            outputs = self.model((robot_states, human_states))
             loss = self.criterion(outputs, values)
             loss.backward()
             self.optimizer.step()
@@ -177,3 +177,11 @@ def pad_batch(batch):
     ys = torch.Tensor([y for x, y in batch]).unsqueeze(1)
 
     return xs, ys
+
+
+def pack_batch(batch):
+    robot_states = torch.Tensor([x[0][0] for x, y in batch])
+    human_states = torch.Tensor([x[1] for x, y in batch])
+    values = torch.Tensor([y for y in batch])
+
+    return (robot_states, human_states), values

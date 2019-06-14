@@ -590,7 +590,6 @@ class CrowdSim(gym.Env):
                 if self.nonstop_human and human.reached_destination():
                     self.generate_human(human)
 
-
             self.global_time += self.time_step
             self.states.append([self.robot.get_full_state(), [human.get_full_state() for human in self.humans],
                                 [human.id for human in self.humans]])
