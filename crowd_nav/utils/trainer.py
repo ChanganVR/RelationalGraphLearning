@@ -80,9 +80,9 @@ class Trainer(object):
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
             self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True)
-        average_epoch_loss = 0
         for epoch in range(num_epochs):
-            epoch_loss = 0
+            epoch_v_loss = 0
+            epoch_s_loss = 0
             logging.debug('{}-th epoch starts'.format(epoch))
             for data in self.data_loader:
                 robot_states, human_states, values, next_human_states = data
@@ -94,6 +94,7 @@ class Trainer(object):
                 loss = self.criterion(outputs, values)
                 loss.backward()
                 self.v_optimizer.step()
+                epoch_v_loss += loss.data.item()
 
                 # optimize state predictor
                 self.s_optimizer.zero_grad()
@@ -102,13 +103,14 @@ class Trainer(object):
                 loss.backward()
                 self.s_optimizer.step()
 
-                epoch_loss += loss.data.item()
+                epoch_s_loss += loss.data.item()
             logging.debug('{}-th epoch ends'.format(epoch))
-            average_epoch_loss = epoch_loss / len(self.memory)
-            writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
-            logging.info('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
+            writer.add_scalar('IL/epoch_v_loss', epoch_v_loss / len(self.memory), epoch)
+            writer.add_scalar('IL/epoch_s_loss', epoch_s_loss / len(self.memory), epoch)
+            logging.info('Average loss in epoch %d: %.2E, %.2E', epoch, epoch_v_loss / len(self.memory),
+                         epoch_s_loss / len(self.memory))
 
-        return average_epoch_loss
+        return
     
     def optimize_pretend_batch(self, num_batches):
         self.pretend_batch_size = 100
@@ -156,7 +158,8 @@ class Trainer(object):
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
             self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True)
-        losses = 0
+        v_losses = 0
+        s_losses = 0
         batch_count = 0
         for data in self.data_loader:
             robot_states, human_states, values, next_human_states = data
@@ -168,6 +171,7 @@ class Trainer(object):
             loss = self.criterion(outputs, values)
             loss.backward()
             self.v_optimizer.step()
+            v_losses += loss.data.item()
 
             # optimize state predictor
             self.s_optimizer.zero_grad()
@@ -175,15 +179,17 @@ class Trainer(object):
             loss = self.criterion(next_human_states_est, next_human_states)
             loss.backward()
             self.s_optimizer.step()
+            s_losses += loss.data.item()
 
             batch_count += 1
             if batch_count > num_batches:
                 break
 
-        average_loss = losses / num_batches
-        logging.info('Average loss : %.2E', average_loss)
+        average_v_loss = v_losses / num_batches
+        average_s_loss = s_losses / num_batches
+        logging.info('Average loss : %.2E, %.2E', average_v_loss, average_s_loss)
 
-        return average_loss
+        return average_v_loss, average_s_loss
 
 
 def pad_batch(batch):
