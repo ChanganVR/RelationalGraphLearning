@@ -14,13 +14,13 @@ class PolicyConfig(BasePolicyConfig):
         # gcn
         self.gcn.num_layer = 2
         self.gcn.X_dim = 32
-        self.gcn.similarity_function = 'embedded_gaussian'
+        self.gcn.similarity_function = 'gaussian'
         self.gcn.layerwise_graph = False
         self.gcn.skip_connection = False
 
         self.action_space.kinematics = 'unicycle'
-        self.action_space.speed_samples = 3
-        self.action_space.rotation_samples = 5
+        self.action_space.speed_samples = 5
+        self.action_space.rotation_samples = 16
 
         self.model_predictive_rl = Config()
         self.model_predictive_rl.planning_depth = 2

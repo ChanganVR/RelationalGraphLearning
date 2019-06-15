@@ -10,6 +10,7 @@ class EnvConfig(BaseEnvConfig):
         self.sim.square_width = 10
         self.sim.circle_radius = 4
         self.sim.human_num = 5
+        self.env.val_size = 10
 
 class PolicyConfig(BasePolicyConfig):
     def __init__(self, debug=False):
@@ -32,6 +33,8 @@ class PolicyConfig(BasePolicyConfig):
         self.model_predictive_rl.value_network_dims = [32, 100, 100, 1]
 
 
+
 class TrainConfig(BaseTrainConfig):
     def __init__(self, debug=False):
         super(TrainConfig, self).__init__(debug)
+        self.imitation_learning.il_epochs = 500
