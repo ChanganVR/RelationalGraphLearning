@@ -302,7 +302,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='model_predictive_rl')
-    parser.add_argument('--config', type=str, default='configs/model_predictive_20.py')
+    parser.add_argument('--config', type=str, default='configs/model_predictive_1.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)

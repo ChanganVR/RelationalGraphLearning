@@ -174,7 +174,7 @@ class ModelPredictiveRL(Policy):
         if isinstance(state, list):
             robot_state, human_states = state
             robot_state = robot_state.squeeze().data.numpy()
-            human_states = human_states.squeeze().data.numpy()
+            human_states = human_states.squeeze(0).data.numpy()
             robot_state = FullState(robot_state[0], robot_state[1], robot_state[2], robot_state[3], robot_state[4],
                                     robot_state[5], robot_state[6], robot_state[7], robot_state[8])
             human_states = [ObservableState(human_state[0], human_state[1], human_state[2], human_state[3],
