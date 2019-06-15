@@ -33,6 +33,8 @@ class Agent(object):
             'visible' if self.visible else 'invisible', self.kinematics))
 
     def set_policy(self, policy):
+        if self.time_step is None:
+            raise ValueError('Time step is None')
         policy.set_time_step(self.time_step)
         self.policy = policy
         self.kinematics = policy.kinematics

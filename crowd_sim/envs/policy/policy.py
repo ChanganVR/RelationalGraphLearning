@@ -37,6 +37,14 @@ class Policy(object):
         return
 
     @abc.abstractmethod
+    def save_model(self, file):
+        return
+
+    @abc.abstractmethod
+    def load_model(self, file):
+        return
+
+    @abc.abstractmethod
     def predict(self, state):
         """
         Policy takes state as input and output an action

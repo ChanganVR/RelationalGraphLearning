@@ -54,7 +54,7 @@ def main(args):
     if policy.trainable:
         if args.model_dir is None:
             parser.error('Trainable policy must be specified with a model weights directory')
-        policy.get_model().load_state_dict(torch.load(model_weights))
+        policy.load_model(model_weights)
 
     # configure environment
     env_config = config.EnvConfig(args.debug)
@@ -76,15 +76,15 @@ def main(args):
         env.test_scenario = args.test_scenario
 
     robot = Robot(env_config, 'robot')
+    env.set_robot(robot)
+    robot.time_step = env.time_step
     robot.set_policy(policy)
+    explorer = Explorer(env, robot, device, gamma=0.9)
 
     train_config = config.TrainConfig(args.debug)
     epsilon_end = train_config.train.epsilon_end
     if not isinstance(robot.policy, ORCA):
         robot.policy.set_epsilon(epsilon_end)
-
-    env.set_robot(robot)
-    explorer = Explorer(env, robot, device, gamma=0.9)
 
     policy.set_phase(args.phase)
     policy.set_device(device)
@@ -144,8 +144,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
-    parser.add_argument('--config', type=str, default='configs/orca_square_20h_config.py')
-    parser.add_argument('--policy', type=str, default='gcn')
+    parser.add_argument('--config', type=str, default='configs/model_predictive_20.py')
+    parser.add_argument('--policy', type=str, default='model_predictive_rl')
     parser.add_argument('--model_dir', type=str, default=None)
     parser.add_argument('--il', default=False, action='store_true')
     parser.add_argument('--rl', default=False, action='store_true')

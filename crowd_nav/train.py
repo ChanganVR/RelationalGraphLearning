@@ -161,7 +161,7 @@ def main(args):
             trainer.optimize_epoch_pretend_batch(il_epochs, writer)
         else:
             trainer.optimize_epoch(il_epochs, writer)
-        torch.save(model.state_dict(), il_weight_file)
+        policy.save_model(il_weight_file)
         logging.info('Finish imitation learning. Weights saved.')
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
 
@@ -244,7 +244,7 @@ def main(args):
 
                 if (episode + train_episodes * e_id) % checkpoint_interval == 0 and reward > best_val_reward:
                     best_val_reward = reward
-                    best_val_model = copy.deepcopy(model.state_dict())
+                    best_val_model = copy.deepcopy(policy.get_state_dict())
             # test after every evaluation to check how the generalization performance evolves
                 if args.test_after_every_eval:
                     sr, cr, time, reward, avg_return = explorer.run_k_episodes(
@@ -258,7 +258,7 @@ def main(args):
             if episode != 0 and (episode + train_episodes * e_id) % checkpoint_interval == 0:
                 current_checkpoint = (episode + train_episodes * e_id) // checkpoint_interval - 1
                 save_every_checkpoint_rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(current_checkpoint) + '.pth'
-                torch.save(model.state_dict(), save_every_checkpoint_rl_weight_file)
+                policy.save_model(save_every_checkpoint_rl_weight_file)
 
             if args.save_stable_models:
                 stable_checkpoint_interval = 20
@@ -272,7 +272,7 @@ def main(args):
                     if episode != 0 and (episode + train_episodes * e_id) % stable_checkpoint_interval == 0:
                         current_stable_checkpoint = (episode + train_episodes * e_id) // stable_checkpoint_interval - 1
                         save_every_stable_rl_weight_file = rl_weight_file.split('.')[0] + '_' + str(episode) + '.pth'
-                        torch.save(model.state_dict(), save_every_stable_rl_weight_file)
+                        policy.save(save_every_stable_rl_weight_file)
                         logging.info('check the env.case_encounter: {}'.format(env.case_counter['test']))
                         sr, cr, time, reward = explorer.run_k_episodes(test_size, 'test', episode=episode, epoch=e_id, print_failure=True)
                         stable_srs.append(sr)
@@ -290,9 +290,10 @@ def main(args):
         logging.info('the {} stable models average cr on the test scenarios are :{}'.format(len(stable_crs), sum(stable_crs) /len(stable_crs)))
         logging.info('the {} stable models average time on the test scenarios are :{}'.format(len(stable_times), sum(stable_times) /len(stable_times)))
 
-    # test with the best val model
+    # # test with the best val model
     if best_val_model is not None:
-        model.load_state_dict(best_val_model)
+        # TODO: replace that with
+        policy.load_state_dict(best_val_model)
         torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
         logging.info('Save the best val model with the reward: {}'.format(best_val_reward))
     explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, epoch=e_id, print_failure=True)

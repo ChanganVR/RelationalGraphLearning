@@ -67,6 +67,25 @@ class ModelPredictiveRL(Policy):
     def get_model(self):
         return self.value_estimator
 
+    def get_state_dict(self):
+        return {
+            'graph_model': self.value_estimator.graph_model.state_dict(),
+            'value_network': self.value_estimator.value_network.state_dict(),
+            'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
+        }
+
+    def load_state_dict(self, state_dict):
+        self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
+        self.value_estimator.value_network.load_state_dict(state_dict['value_network'])
+        self.state_predictor.human_motion_predictor.load_state_dict(state_dict['motion_predictor'])
+
+    def save_model(self, file):
+        torch.save(self.get_state_dict(), file)
+
+    def load_model(self, file):
+        checkpoint = torch.load(file)
+        self.load_state_dict(checkpoint)
+
     def build_action_space(self, v_pref):
         """
         Action space consists of 25 uniformly sampled actions in permitted range and 25 randomly sampled actions.
