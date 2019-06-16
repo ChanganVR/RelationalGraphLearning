@@ -2,12 +2,11 @@ import logging
 import math
 import gym
 import matplotlib.lines as mlines
-import numpy as np
-import random
-import json
 from matplotlib import patches
 from numpy.linalg import norm
 from crowd_sim.envs.policy.policy_factory import policy_factory
+from crowd_sim.envs.utils.state import tensor_to_joint_state, JointState
+from crowd_sim.envs.utils.action import ActionRot
 from crowd_sim.envs.utils.human import Human
 from crowd_sim.envs.utils.info import *
 from crowd_sim.envs.utils.utils import point_to_segment_dist
@@ -68,6 +67,7 @@ class CrowdSim(gym.Env):
         self.As = None
         self.Xs = None
         self.feats = None
+        self.trajs = list()
         self.save_scene_dir = None
         self.panel_width = 10
         self.panel_height = 10
@@ -449,6 +449,8 @@ class CrowdSim(gym.Env):
             self.feats = list()
         if hasattr(self.robot.policy, 'get_X'):
             self.Xs = list()
+        if hasattr(self.robot.policy, 'trajs'):
+            self.trajs = list()
 
         # get current observation
         if self.robot.sensor == 'coordinates':
@@ -582,6 +584,8 @@ class CrowdSim(gym.Env):
                 self.feats.append(self.robot.policy.get_feat())
             if hasattr(self.robot.policy, 'get_X'):
                 self.Xs.append(self.robot.policy.get_X())
+            if hasattr(self.robot.policy, 'traj'):
+                self.trajs.append(self.robot.policy.get_traj())
 
             # update all agents
             self.robot.step(action)
@@ -1085,6 +1089,20 @@ class CrowdSim(gym.Env):
                 ax.add_artist(arrow)
             global_step = 0
 
+            human_future_positions = []
+            human_future_trajs = []
+            for traj in self.trajs:
+                human_future_position = [[tensor_to_joint_state(traj[step][0]).human_states[i].position for step in range(2)] for i in range(self.human_num)]
+                human_future_positions.append(human_future_position)
+
+            for i in range(self.human_num):
+                circles = []
+                for j in range(2):
+                    circle = plt.Circle(human_future_positions[0][i][j], self.humans[0].radius/2, fill=False, color=cmap(i))
+                    ax.add_artist(circle)
+                    circles.append(circle)
+                human_future_trajs.append(circles)
+
             def update(frame_num):
                 nonlocal global_step
                 nonlocal arrows
@@ -1113,6 +1131,10 @@ class CrowdSim(gym.Env):
                     #     attention_scores[i].set_text('human {}: {:.2f}'.format(i, self.attention_weights[frame_num][i]))
 
                 time.set_text('Time: {:.2f}'.format(frame_num * self.time_step))
+
+                for i, circles in enumerate(human_future_trajs):
+                    for j, circle in enumerate(circles):
+                        circle.center = human_future_positions[global_step][i][j]
 
             def plot_value_heatmap():
                 if self.robot.kinematics != 'holonomic':
@@ -1164,14 +1186,15 @@ class CrowdSim(gym.Env):
             def on_click(event):
                 if anim.running:
                     anim.event_source.stop()
-                    if hasattr(self.robot.policy, 'get_matrix_A'):
-                        print_matrix_A()
-                    if hasattr(self.robot.policy, 'get_feat'):
-                        print_feat()
-                    if hasattr(self.robot.policy, 'get_X'):
-                        print_X()
-                    # if hasattr(self.robot.policy, 'action_values'):
-                    #    plot_value_heatmap()
+                    if event.key == 'a':
+                        if hasattr(self.robot.policy, 'get_matrix_A'):
+                            print_matrix_A()
+                        if hasattr(self.robot.policy, 'get_feat'):
+                            print_feat()
+                        if hasattr(self.robot.policy, 'get_X'):
+                            print_X()
+                        # if hasattr(self.robot.policy, 'action_values'):
+                        #    plot_value_heatmap()
                 else:
                     anim.event_source.start()
                 anim.running ^= True

@@ -3,7 +3,7 @@ import numpy as np
 import itertools
 from crowd_sim.envs.policy.policy import Policy
 from crowd_sim.envs.utils.action import ActionRot, ActionXY
-from crowd_sim.envs.utils.state import ObservableState, FullState
+from crowd_sim.envs.utils.state import ObservableState, FullState, tensor_to_joint_state
 from crowd_nav.policy.state_predictor import StatePredictor
 from crowd_nav.policy.graph_model import RGL
 from crowd_nav.policy.value_estimator import ValueEstimator
@@ -32,6 +32,7 @@ class ModelPredictiveRL(Policy):
         self.value_estimator = None
         self.state_predictor = None
         self.planning_depth = None
+        self.traj = None
 
     def configure(self, config):
         self.set_common_parameters(config)
@@ -73,6 +74,9 @@ class ModelPredictiveRL(Policy):
             'value_network': self.value_estimator.value_network.state_dict(),
             'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
         }
+
+    def get_traj(self):
+        return self.traj
 
     def load_state_dict(self, state_dict):
         self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
@@ -130,6 +134,7 @@ class ModelPredictiveRL(Policy):
         else:
             max_action = None
             max_value = float('-inf')
+            max_traj = None
             for action in self.action_space:
                 # preprocess the state
                 # TODO: separate features instead of concatenating
@@ -138,32 +143,54 @@ class ModelPredictiveRL(Policy):
                 robot_state_tensor = torch.Tensor([state.robot_state.to_tuple()]).to(self.device).unsqueeze(0)
                 human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]).\
                     to(self.device).unsqueeze(0)
+
                 next_state = self.state_predictor((robot_state_tensor, human_states_tensor), action)
-                value = self.estimate_reward(state) + self.get_normalized_gamma() \
-                        * self.V_planning(next_state, self.planning_depth)
+                max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth)
+                reward_est = self.estimate_reward(state)
+                value = self.estimate_reward(state) + self.get_normalized_gamma() * max_next_return
                 if value > max_value:
                     max_value = value
                     max_action = action
+                    max_traj = [((robot_state_tensor, human_states_tensor), action, reward_est)] + max_next_traj
             if max_action is None:
                 raise ValueError('Value network is not well trained.')
 
         if self.phase == 'train':
             self.last_state = self.transform(state)
+        else:
+            self.traj = max_traj
 
         return max_action
 
     def V_planning(self, state, depth):
+        """ Plans n steps into future. Computes the value for the current state as well as the trajectories
+        defined as a list of (state, action, reward) triples
+
+        :param state:
+        :param depth:
+        :return:
+        """
+        current_state_value = self.value_estimator(state)
         if depth == 1:
-            return self.value_estimator(state)
+            return current_state_value, list()
 
         action_space = self.action_space
-        sums = []
+        returns = []
+        trajs = []
         for action in action_space:
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state)
-            sums.append(reward_est + self.get_normalized_gamma() * self.V_planning(next_state_est, depth - 1))
+            next_value, next_traj = self.V_planning(next_state_est, depth - 1)
+            return_value = current_state_value / depth + (depth - 1) / depth * next_value
 
-        return self.value_estimator(state) / depth + (depth - 1) / depth * max(sums)
+            returns.append(return_value)
+            trajs.append([(state, action, reward_est)] + next_traj)
+
+        max_index = np.argmax(returns)
+        max_return = returns[max_index]
+        max_traj = trajs[max_index]
+
+        return max_return, max_traj
 
     def estimate_reward(self, state):
         """ If the time step is small enough, it's okay to model agent as linear movement during this period
@@ -172,13 +199,9 @@ class ModelPredictiveRL(Policy):
         # TODO: to create a unified version
         # collision detection
         if isinstance(state, list):
-            robot_state, human_states = state
-            robot_state = robot_state.squeeze().data.numpy()
-            human_states = human_states.squeeze(0).data.numpy()
-            robot_state = FullState(robot_state[0], robot_state[1], robot_state[2], robot_state[3], robot_state[4],
-                                    robot_state[5], robot_state[6], robot_state[7], robot_state[8])
-            human_states = [ObservableState(human_state[0], human_state[1], human_state[2], human_state[3],
-                                            human_state[4]) for human_state in human_states]
+            joint_state = tensor_to_joint_state(state)
+            robot_state = joint_state.robot_state
+            human_states = joint_state.human_states
         else:
             robot_state, human_states = state.robot_state, state.human_states
 
