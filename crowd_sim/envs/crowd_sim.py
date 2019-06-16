@@ -1090,18 +1090,20 @@ class CrowdSim(gym.Env):
             global_step = 0
 
             human_future_positions = []
-            human_future_trajs = []
+            human_future_circles = []
             for traj in self.trajs:
-                human_future_position = [[tensor_to_joint_state(traj[step][0]).human_states[i].position for step in range(2)] for i in range(self.human_num)]
+                human_future_position = [[tensor_to_joint_state(traj[step+1][0]).human_states[i].position
+                                          for step in range(self.robot.policy.planning_depth)]
+                                         for i in range(self.human_num)]
                 human_future_positions.append(human_future_position)
 
             for i in range(self.human_num):
                 circles = []
-                for j in range(2):
-                    circle = plt.Circle(human_future_positions[0][i][j], self.humans[0].radius/2, fill=False, color=cmap(i))
+                for j in range(self.robot.policy.planning_depth):
+                    circle = plt.Circle(human_future_positions[0][i][j], self.humans[0].radius/(1.7+j), fill=False, color=cmap(i))
                     ax.add_artist(circle)
                     circles.append(circle)
-                human_future_trajs.append(circles)
+                human_future_circles.append(circles)
 
             def update(frame_num):
                 nonlocal global_step
@@ -1132,7 +1134,7 @@ class CrowdSim(gym.Env):
 
                 time.set_text('Time: {:.2f}'.format(frame_num * self.time_step))
 
-                for i, circles in enumerate(human_future_trajs):
+                for i, circles in enumerate(human_future_circles):
                     for j, circle in enumerate(circles):
                         circle.center = human_future_positions[global_step][i][j]
 

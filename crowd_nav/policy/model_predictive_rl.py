@@ -172,7 +172,7 @@ class ModelPredictiveRL(Policy):
         """
         current_state_value = self.value_estimator(state)
         if depth == 1:
-            return current_state_value, list()
+            return current_state_value, [(state, None, None)]
 
         action_space = self.action_space
         returns = []
