@@ -43,7 +43,10 @@ class StatePredictor(nn.Module):
         # px, py, vx, vy, radius, gx, gy, v_pref, theta
         next_state = robot_state.clone().squeeze()
         if self.kinematics == 'holonomic':
-            raise NotImplementedError
+            next_state[0] = next_state[0] + action.vx * self.time_step
+            next_state[1] = next_state[1] + action.vy * self.time_step
+            next_state[2] = action.vx
+            next_state[3] = action.vy
         else:
             next_state[7] = next_state[7] + action.r
             next_state[0] = next_state[0] + np.cos(next_state[7]) * action.v * self.time_step
