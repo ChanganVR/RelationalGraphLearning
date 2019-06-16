@@ -1,9 +1,11 @@
 import torch
 import numpy as np
+from numpy.linalg import norm
 import itertools
 from crowd_sim.envs.policy.policy import Policy
 from crowd_sim.envs.utils.action import ActionRot, ActionXY
 from crowd_sim.envs.utils.state import ObservableState, FullState, tensor_to_joint_state
+from crowd_sim.envs.utils.utils import point_to_segment_dist
 from crowd_nav.policy.state_predictor import StatePredictor
 from crowd_nav.policy.graph_model import RGL
 from crowd_nav.policy.value_estimator import ValueEstimator
@@ -146,8 +148,8 @@ class ModelPredictiveRL(Policy):
 
                 next_state = self.state_predictor((robot_state_tensor, human_states_tensor), action)
                 max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth)
-                reward_est = self.estimate_reward(state)
-                value = self.estimate_reward(state) + self.get_normalized_gamma() * max_next_return
+                reward_est = self.estimate_reward(state, action)
+                value = reward_est + self.get_normalized_gamma() * max_next_return
                 if value > max_value:
                     max_value = value
                     max_action = action
@@ -179,7 +181,7 @@ class ModelPredictiveRL(Policy):
         trajs = []
         for action in action_space:
             next_state_est = self.state_predictor(state, action)
-            reward_est = self.estimate_reward(state)
+            reward_est = self.estimate_reward(state, action)
             next_value, next_traj = self.V_planning(next_state_est, depth - 1)
             return_value = current_state_value / depth + (depth - 1) / depth * next_value
 
@@ -192,36 +194,53 @@ class ModelPredictiveRL(Policy):
 
         return max_return, max_traj
 
-    def estimate_reward(self, state):
+    def estimate_reward(self, state, action):
         """ If the time step is small enough, it's okay to model agent as linear movement during this period
 
         """
-        # TODO: to create a unified version
         # collision detection
-        if isinstance(state, list):
-            joint_state = tensor_to_joint_state(state)
-            robot_state = joint_state.robot_state
-            human_states = joint_state.human_states
-        else:
-            robot_state, human_states = state.robot_state, state.human_states
+        human_states = state.human_states
+        robot_state = state.robot_state
 
         dmin = float('inf')
         collision = False
         for i, human in enumerate(human_states):
-            dist = np.linalg.norm((robot_state.px - human.px, robot_state.py - human.py)) - robot_state.radius - human.radius
-            if dist < 0:
+            px = human.px - robot_state.px
+            py = human.py - robot_state.py
+            if self.kinematics == 'holonomic':
+                vx = human.vx - action.vx
+                vy = human.vy - action.vy
+            else:
+                vx = human.vx - action.v * np.cos(action.r + robot_state.theta)
+                vy = human.vy - action.v * np.sin(action.r + robot_state.theta)
+            ex = px + vx * self.time_step
+            ey = py + vy * self.time_step
+            # closest distance between boundaries of two agents
+            closest_dist = point_to_segment_dist(px, py, ex, ey, 0, 0) - human.radius - robot_state.radius
+            if closest_dist < 0:
                 collision = True
                 break
-            if dist < dmin:
-                dmin = dist
+            elif closest_dist < dmin:
+                dmin = closest_dist
 
         # check if reaching the goal
-        reaching_goal = np.linalg.norm((robot_state.px - robot_state.gx, robot_state.py - robot_state.gy)) < robot_state.radius
+        if self.kinematics == 'holonomic':
+            px = robot_state.px + action.vx * self.time_step
+            py = robot_state.py + action.vy * self.time_step
+        else:
+            theta = robot_state.theta + action.r
+            px = robot_state.px + np.cos(theta) * action.v * self.time_step
+            py = robot_state.py + np.sin(theta) * action.v * self.time_step
+
+        end_position = np.array((px, py))
+        reaching_goal = norm(end_position - np.array([robot_state.gx, robot_state.gy])) < robot_state.radius
+
         if collision:
             reward = -0.25
         elif reaching_goal:
             reward = 1
         elif dmin < 0.2:
+            # adjust the reward based on FPS
             reward = (dmin - 0.2) * 0.5 * self.time_step
         else:
             reward = 0
