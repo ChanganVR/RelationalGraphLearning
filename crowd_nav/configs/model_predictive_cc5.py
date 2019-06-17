@@ -10,7 +10,7 @@ class EnvConfig(BaseEnvConfig):
         self.sim.square_width = 10
         self.sim.circle_radius = 4
         self.sim.human_num = 5
-        self.env.val_size = 10
+        self.env.val_size = 100
 
 class PolicyConfig(BasePolicyConfig):
     def __init__(self, debug=False):
@@ -23,10 +23,11 @@ class PolicyConfig(BasePolicyConfig):
         self.gcn.layerwise_graph = False
         self.gcn.skip_connection = False
 
+        '''
         self.action_space.kinematics = 'unicycle'
         self.action_space.speed_samples = 3
         self.action_space.rotation_samples = 5
-
+        '''
         self.model_predictive_rl = Config()
         self.model_predictive_rl.planning_depth = 2
         self.model_predictive_rl.motion_predictor_dims = [64, 5]
@@ -37,4 +38,4 @@ class PolicyConfig(BasePolicyConfig):
 class TrainConfig(BaseTrainConfig):
     def __init__(self, debug=False):
         super(TrainConfig, self).__init__(debug)
-        self.imitation_learning.il_epochs = 500
+        self.imitation_learning.il_epochs = 50

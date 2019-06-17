@@ -164,7 +164,7 @@ class ModelPredictiveRL(Policy):
 
         return max_action
 
-    def V_planning(self, state, depth):
+    def V_planning(self, state, depth, width=16):
         """ Plans n steps into future. Computes the value for the current state as well as the trajectories
         defined as a list of (state, action, reward) triples
 
@@ -172,14 +172,27 @@ class ModelPredictiveRL(Policy):
         :param depth:
         :return:
         """
+        def action_clip(state, action_space, width, depth=1):
+            next_values = []
+
+            for action in action_space:
+                next_state_est = self.state_predictor(state, action)
+                next_value, _ = self.V_planning(next_state_est, depth, width)
+                next_values.append(next_value)
+
+            max_indexes = np.argpartition(np.array(next_values), -width)[-width:]
+            clipped_action_space = [action_space[i] for i in max_indexes]
+            return clipped_action_space
+
         current_state_value = self.value_estimator(state)
         if depth == 1:
             return current_state_value, [(state, None, None)]
 
-        action_space = self.action_space
+        action_space_clipped = action_clip(state, self.action_space, width)
         returns = []
         trajs = []
-        for action in action_space:
+
+        for action in action_space_clipped:
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state, action)
             next_value, next_traj = self.V_planning(next_state_est, depth - 1)
@@ -199,6 +212,8 @@ class ModelPredictiveRL(Policy):
 
         """
         # collision detection
+        if isinstance(state, list):
+            state = tensor_to_joint_state(state)
         human_states = state.human_states
         robot_state = state.robot_state
 
