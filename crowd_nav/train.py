@@ -28,8 +28,8 @@ def set_random_seeds(seed):
 
 def main(args):
     import time
-    # set_random_seeds(args.randomseed)
-    set_random_seeds(time.time())
+    set_random_seeds(args.randomseed)
+    #set_random_seeds(time.time())
     # configure paths
     make_new_dir = True
     if os.path.exists(args.output_dir):
@@ -314,7 +314,7 @@ if __name__ == '__main__':
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--save_scene', default=False, action='store_true')
     parser.add_argument('--test_after_every_eval', default=False, action='store_true')
-    # parser.add_argument('--randomseed', default=None)
+    parser.add_argument('--randomseed', type=int, default=17)
     parser.add_argument('--save_stable_models', default=False, action='store_true')
 
     # arguments for GCN

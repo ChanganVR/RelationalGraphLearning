@@ -39,6 +39,7 @@ class ModelPredictiveRL(Policy):
     def configure(self, config):
         self.set_common_parameters(config)
         self.planning_depth = config.model_predictive_rl.planning_depth
+        self.do_action_clip = config.model_predictive_rl.do_action_clip
         graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
         self.value_estimator = ValueEstimator(config, graph_model)
         self.state_predictor = StatePredictor(config, graph_model, self.time_step)
@@ -164,7 +165,7 @@ class ModelPredictiveRL(Policy):
 
         return max_action
 
-    def V_planning(self, state, depth, width=16):
+    def V_planning(self, state, depth, width=5):
         """ Plans n steps into future. Computes the value for the current state as well as the trajectories
         defined as a list of (state, action, reward) triples
 
@@ -188,7 +189,11 @@ class ModelPredictiveRL(Policy):
         if depth == 1:
             return current_state_value, [(state, None, None)]
 
-        action_space_clipped = action_clip(state, self.action_space, width)
+        if self.do_action_clip:
+            action_space_clipped = action_clip(state, self.action_space, width)
+        else:
+            action_space_clipped = self.action_space
+
         returns = []
         trajs = []
 
