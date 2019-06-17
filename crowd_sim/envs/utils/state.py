@@ -61,13 +61,17 @@ class JointState(object):
         self.robot_state = robot_state
         self.human_states = human_states
 
-    def to_tensor(self, add_batch_size=False):
+    def to_tensor(self, add_batch_size=False, device=None):
         robot_state_tensor = torch.Tensor([self.robot_state.to_tuple()])
         human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in self.human_states])
 
         if add_batch_size:
             robot_state_tensor = robot_state_tensor.unsqueeze(0)
             human_states_tensor = human_states_tensor.unsqueeze(0)
+
+        if device is not None:
+            robot_state_tensor.to(device)
+            human_states_tensor.to(device)
 
         return robot_state_tensor, human_states_tensor
 

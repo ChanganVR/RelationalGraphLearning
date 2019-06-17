@@ -35,6 +35,8 @@ class ModelPredictiveRL(Policy):
         self.value_estimator = None
         self.state_predictor = None
         self.planning_depth = None
+        self.planning_width = None
+        self.do_action_clip = None
         self.traj = None
 
     def configure(self, config):
@@ -48,6 +50,7 @@ class ModelPredictiveRL(Policy):
         self.model = [graph_model, self.value_estimator.value_network, self.state_predictor.human_motion_predictor]
 
         logging.info('Planning depth: {}'.format(self.planning_depth))
+        logging.info('Planning width: {}'.format(self.planning_width))
 
     def set_common_parameters(self, config):
         self.gamma = config.rl.gamma
@@ -144,29 +147,21 @@ class ModelPredictiveRL(Policy):
             max_traj = None
 
             if self.do_action_clip:
-                robot_state_tensor = torch.Tensor([state.robot_state.to_tuple()]).to(self.device).unsqueeze(0)
-                human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]). \
-                    to(self.device).unsqueeze(0)
-                action_space_clipped = self.action_clip([robot_state_tensor, human_states_tensor], self.action_space, self.planning_width)
+                state_tensor = state.to_tensor(add_batch_size=True, device=self.device)
+                action_space_clipped = self.action_clip(state_tensor, self.action_space, self.planning_width)
             else:
                 action_space_clipped = self.action_space
 
             for action in action_space_clipped:
-                # preprocess the state
-                # TODO: separate features instead of concatenating
-                # state_tensor = torch.cat([torch.Tensor([state.robot_state + human_state]).to(self.device)
-                #                          for human_state in state.human_states], dim=0)
-                robot_state_tensor = torch.Tensor([state.robot_state.to_tuple()]).to(self.device).unsqueeze(0)
-                human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]).\
-                    to(self.device).unsqueeze(0)
-                next_state = self.state_predictor((robot_state_tensor, human_states_tensor), action)
+                state_tensor = state.to_tensor(add_batch_size=True, device=self.device)
+                next_state = self.state_predictor(state_tensor, action)
                 max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth, self.planning_width)
                 reward_est = self.estimate_reward(state, action)
                 value = reward_est + self.get_normalized_gamma() * max_next_return
                 if value > max_value:
                     max_value = value
                     max_action = action
-                    max_traj = [((robot_state_tensor, human_states_tensor), action, reward_est)] + max_next_traj
+                    max_traj = [(state_tensor, action, reward_est)] + max_next_traj
             if max_action is None:
                 raise ValueError('Value network is not well trained.')
 
@@ -214,6 +209,7 @@ class ModelPredictiveRL(Policy):
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state, action)
             next_value, next_traj = self.V_planning(next_state_est, depth - 1, self.planning_width)
+            # TODO: verify this equation
             return_value = current_state_value / depth + (depth - 1) / depth * next_value
 
             returns.append(return_value)
