@@ -180,12 +180,13 @@ class Trainer(object):
             v_losses += loss.data.item()
 
             # optimize state predictor
-            self.s_optimizer.zero_grad()
-            _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
-            loss = self.criterion(next_human_states_est, next_human_states)
-            loss.backward()
-            self.s_optimizer.step()
-            s_losses += loss.data.item()
+            if batch_count % self.state_predictor_update_interval == 0:
+                self.s_optimizer.zero_grad()
+                _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
+                loss = self.criterion(next_human_states_est, next_human_states)
+                loss.backward()
+                self.s_optimizer.step()
+                s_losses += loss.data.item()
 
             batch_count += 1
             if batch_count > num_batches:
