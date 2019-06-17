@@ -40,6 +40,7 @@ class ModelPredictiveRL(Policy):
         self.set_common_parameters(config)
         self.planning_depth = config.model_predictive_rl.planning_depth
         self.do_action_clip = config.model_predictive_rl.do_action_clip
+        self.planning_width = config.model_predictive_rl.planning_width
         graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
         self.value_estimator = ValueEstimator(config, graph_model)
         self.state_predictor = StatePredictor(config, graph_model, self.time_step)
@@ -138,7 +139,16 @@ class ModelPredictiveRL(Policy):
             max_action = None
             max_value = float('-inf')
             max_traj = None
-            for action in self.action_space:
+
+            if self.do_action_clip:
+                robot_state_tensor = torch.Tensor([state.robot_state.to_tuple()]).to(self.device).unsqueeze(0)
+                human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]). \
+                    to(self.device).unsqueeze(0)
+                action_space_clipped = self.action_clip([robot_state_tensor, human_states_tensor], self.action_space, self.planning_width)
+            else:
+                action_space_clipped = self.action_space
+
+            for action in action_space_clipped:
                 # preprocess the state
                 # TODO: separate features instead of concatenating
                 # state_tensor = torch.cat([torch.Tensor([state.robot_state + human_state]).to(self.device)
@@ -146,9 +156,8 @@ class ModelPredictiveRL(Policy):
                 robot_state_tensor = torch.Tensor([state.robot_state.to_tuple()]).to(self.device).unsqueeze(0)
                 human_states_tensor = torch.Tensor([human_state.to_tuple() for human_state in state.human_states]).\
                     to(self.device).unsqueeze(0)
-
                 next_state = self.state_predictor((robot_state_tensor, human_states_tensor), action)
-                max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth)
+                max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth, self.planning_width)
                 reward_est = self.estimate_reward(state, action)
                 value = reward_est + self.get_normalized_gamma() * max_next_return
                 if value > max_value:
@@ -165,7 +174,19 @@ class ModelPredictiveRL(Policy):
 
         return max_action
 
-    def V_planning(self, state, depth, width=5):
+    def action_clip(self, state, action_space, width, depth=1):
+        next_values = []
+
+        for action in action_space:
+            next_state_est = self.state_predictor(state, action)
+            next_value, _ = self.V_planning(next_state_est, depth, width)
+            next_values.append(next_value)
+
+        max_indexes = np.argpartition(np.array(next_values), -width)[-width:]
+        clipped_action_space = [action_space[i] for i in max_indexes]
+        return clipped_action_space
+
+    def V_planning(self, state, depth, width):
         """ Plans n steps into future. Computes the value for the current state as well as the trajectories
         defined as a list of (state, action, reward) triples
 
@@ -173,24 +194,13 @@ class ModelPredictiveRL(Policy):
         :param depth:
         :return:
         """
-        def action_clip(state, action_space, width, depth=1):
-            next_values = []
-
-            for action in action_space:
-                next_state_est = self.state_predictor(state, action)
-                next_value, _ = self.V_planning(next_state_est, depth, width)
-                next_values.append(next_value)
-
-            max_indexes = np.argpartition(np.array(next_values), -width)[-width:]
-            clipped_action_space = [action_space[i] for i in max_indexes]
-            return clipped_action_space
 
         current_state_value = self.value_estimator(state)
         if depth == 1:
             return current_state_value, [(state, None, None)]
 
         if self.do_action_clip:
-            action_space_clipped = action_clip(state, self.action_space, width)
+            action_space_clipped = self.action_clip(state, self.action_space, width)
         else:
             action_space_clipped = self.action_space
 
@@ -200,7 +210,7 @@ class ModelPredictiveRL(Policy):
         for action in action_space_clipped:
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state, action)
-            next_value, next_traj = self.V_planning(next_state_est, depth - 1)
+            next_value, next_traj = self.V_planning(next_state_est, depth - 1, self.planning_width)
             return_value = current_state_value / depth + (depth - 1) / depth * next_value
 
             returns.append(return_value)
