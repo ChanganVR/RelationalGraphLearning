@@ -1,3 +1,4 @@
+import logging
 import torch
 import numpy as np
 from numpy.linalg import norm
@@ -45,6 +46,8 @@ class ModelPredictiveRL(Policy):
         self.value_estimator = ValueEstimator(config, graph_model)
         self.state_predictor = StatePredictor(config, graph_model, self.time_step)
         self.model = [graph_model, self.value_estimator.value_network, self.state_predictor.human_motion_predictor]
+
+        logging.info('Planning depth: {}'.format(self.planning_depth))
 
     def set_common_parameters(self, config):
         self.gamma = config.rl.gamma

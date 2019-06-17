@@ -50,6 +50,8 @@ def main(args):
     # configure policy
     policy = policy_factory[args.policy]()
     policy_config = config.PolicyConfig(args.debug)
+    if args.planning_depth is not None:
+        policy_config.model_predictive_rl.planning_depth = args.planning_depth
     policy.configure(policy_config)
     if policy.trainable:
         if args.model_dir is None:
@@ -166,6 +168,7 @@ if __name__ == '__main__':
     #parser.add_argument('--test_scenario', type=str, default='realsim_GrandCentral')
     parser.add_argument('--test_scenario', type=str, default=None)
     parser.add_argument('--plot_test_scenarios_hist', default=True, action='store_true')
+    parser.add_argument('--planning_depth', type=int, default=None)
 
     sys_args = parser.parse_args()
 
