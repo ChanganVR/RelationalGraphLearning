@@ -199,6 +199,8 @@ class ModelPredictiveRL(Policy):
 
         """
         # collision detection
+        if isinstance(state, list):
+            state = tensor_to_joint_state(state)
         human_states = state.human_states
         robot_state = state.robot_state
 
