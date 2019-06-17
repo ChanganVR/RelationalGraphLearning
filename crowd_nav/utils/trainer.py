@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 
 
 class Trainer(object):
-    def __init__(self, value_estimator, state_predictor, memory, device, batch_size, optimizer_str):
+    def __init__(self, value_estimator, state_predictor, memory, device, batch_size, optimizer_str, human_num):
         """
         Train the trainable model of a policy
         """
@@ -18,6 +18,7 @@ class Trainer(object):
         self.data_loader = None
         self.batch_size = batch_size
         self.optimizer_str = optimizer_str
+        self.state_predictor_update_interval = human_num
         self.v_optimizer = None
         self.s_optimizer = None
         self.pretend_batch_size = 100
@@ -80,10 +81,13 @@ class Trainer(object):
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
             self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True)
+
         for epoch in range(num_epochs):
             epoch_v_loss = 0
             epoch_s_loss = 0
             logging.debug('{}-th epoch starts'.format(epoch))
+
+            update_counter = 0
             for data in self.data_loader:
                 robot_states, human_states, values, next_human_states = data
 
@@ -96,14 +100,16 @@ class Trainer(object):
                 self.v_optimizer.step()
                 epoch_v_loss += loss.data.item()
 
-                # optimize state predictor
-                self.s_optimizer.zero_grad()
-                _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
-                loss = self.criterion(next_human_states_est, next_human_states)
-                loss.backward()
-                self.s_optimizer.step()
+                if update_counter % self.state_predictor_update_interval == 0:
+                    # optimize state predictor
+                    self.s_optimizer.zero_grad()
+                    _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
+                    loss = self.criterion(next_human_states_est, next_human_states)
+                    loss.backward()
+                    self.s_optimizer.step()
+                    epoch_s_loss += loss.data.item()
+                update_counter += 1
 
-                epoch_s_loss += loss.data.item()
             logging.debug('{}-th epoch ends'.format(epoch))
             writer.add_scalar('IL/epoch_v_loss', epoch_v_loss / len(self.memory), epoch)
             writer.add_scalar('IL/epoch_s_loss', epoch_s_loss / len(self.memory), epoch)
@@ -174,12 +180,13 @@ class Trainer(object):
             v_losses += loss.data.item()
 
             # optimize state predictor
-            self.s_optimizer.zero_grad()
-            _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
-            loss = self.criterion(next_human_states_est, next_human_states)
-            loss.backward()
-            self.s_optimizer.step()
-            s_losses += loss.data.item()
+            if batch_count % self.state_predictor_update_interval == 0:
+                self.s_optimizer.zero_grad()
+                _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
+                loss = self.criterion(next_human_states_est, next_human_states)
+                loss.backward()
+                self.s_optimizer.step()
+                s_losses += loss.data.item()
 
             batch_count += 1
             if batch_count > num_batches:

@@ -129,7 +129,7 @@ def main(args):
     model = policy.get_model()
     batch_size = train_config.trainer.batch_size
     optimizer = train_config.trainer.optimizer
-    trainer = Trainer(model, policy.state_predictor, memory, device, batch_size, optimizer)
+    trainer = Trainer(model, policy.state_predictor, memory, device, batch_size, optimizer, env.human_num)
     explorer = Explorer(env, robot, device, memory, policy.gamma, target_policy=policy)
 
     # imitation learning
