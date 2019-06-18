@@ -27,9 +27,7 @@ def set_random_seeds(seed):
 
 
 def main(args):
-    import time
     set_random_seeds(args.randomseed)
-    #set_random_seeds(time.time())
     # configure paths
     make_new_dir = True
     if os.path.exists(args.output_dir):
@@ -227,7 +225,7 @@ def main(args):
                 explorer.update_target_model(model)
             # evaluate the model
             if (episode + train_episodes * e_id) % evaluation_interval == 0:
-                explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
+                _, _, _, reward, _ = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
                 explorer.log('val', (episode + train_episodes * e_id) // evaluation_interval)
 
                 if (episode + train_episodes * e_id) % checkpoint_interval == 0 and reward > best_val_reward:
