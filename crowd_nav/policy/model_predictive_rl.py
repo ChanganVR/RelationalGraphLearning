@@ -173,14 +173,16 @@ class ModelPredictiveRL(Policy):
         return max_action
 
     def action_clip(self, state, action_space, width, depth=1):
-        next_values = []
+        values = []
 
         for action in action_space:
             next_state_est = self.state_predictor(state, action)
-            next_value, _ = self.V_planning(next_state_est, depth, width)
-            next_values.append(next_value)
+            next_return, _ = self.V_planning(next_state_est, depth, width)
+            reward_est = self.estimate_reward(state, action)
+            value = reward_est + self.get_normalized_gamma() * next_return
+            values.append(value)
 
-        max_indexes = np.argpartition(np.array(next_values), -width)[-width:]
+        max_indexes = np.argpartition(np.array(values), -width)[-width:]
         clipped_action_space = [action_space[i] for i in max_indexes]
         return clipped_action_space
 
@@ -226,7 +228,7 @@ class ModelPredictiveRL(Policy):
 
         """
         # collision detection
-        if isinstance(state, list):
+        if isinstance(state, list) or isinstance(state, tuple):
             state = tensor_to_joint_state(state)
         human_states = state.human_states
         robot_state = state.robot_state
