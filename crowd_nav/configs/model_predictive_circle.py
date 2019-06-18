@@ -46,3 +46,5 @@ class PolicyConfig(BasePolicyConfig):
 class TrainConfig(BaseTrainConfig):
     def __init__(self, debug=False):
         super(TrainConfig, self).__init__(debug)
+
+        self.train.freeze_state_predictor = True

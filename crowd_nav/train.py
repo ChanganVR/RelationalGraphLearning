@@ -129,7 +129,8 @@ def main(args):
     model = policy.get_model()
     batch_size = train_config.trainer.batch_size
     optimizer = train_config.trainer.optimizer
-    trainer = Trainer(model, policy.state_predictor, memory, device, batch_size, optimizer, env.human_num)
+    trainer = Trainer(model, policy.state_predictor, memory, device, batch_size, optimizer, env.human_num,
+                      freeze_state_predictor=train_config.train.freeze_state_predictor)
     explorer = Explorer(env, robot, device, memory, policy.gamma, target_policy=policy)
 
     # imitation learning
@@ -305,7 +306,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--policy', type=str, default='model_predictive_rl')
-    parser.add_argument('--config', type=str, default='configs/model_predictive_cc5.py')
+    parser.add_argument('--config', type=str, default='configs/model_predictive_circle.py')
     parser.add_argument('--output_dir', type=str, default='data/output')
     parser.add_argument('--overwrite', default=False, action='store_true')
     parser.add_argument('--weights', type=str)
