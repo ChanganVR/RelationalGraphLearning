@@ -130,7 +130,8 @@ def main(args):
     batch_size = train_config.trainer.batch_size
     optimizer = train_config.trainer.optimizer
     trainer = Trainer(model, policy.state_predictor, memory, device, batch_size, optimizer, env.human_num,
-                      freeze_state_predictor=train_config.train.freeze_state_predictor)
+                      freeze_state_predictor=train_config.train.freeze_state_predictor,
+                      share_graph_model=policy_config.model_predictive_rl.share_graph_model)
     explorer = Explorer(env, robot, device, memory, policy.gamma, target_policy=policy)
 
     # imitation learning

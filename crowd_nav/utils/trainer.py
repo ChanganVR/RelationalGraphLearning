@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 class Trainer(object):
     def __init__(self, value_estimator, state_predictor, memory, device, batch_size, optimizer_str, human_num,
-                 freeze_state_predictor):
+                 freeze_state_predictor, share_graph_model):
         """
         Train the trainable model of a policy
         """
@@ -21,6 +21,7 @@ class Trainer(object):
         self.optimizer_str = optimizer_str
         self.state_predictor_update_interval = human_num
         self.freeze_state_predictor = freeze_state_predictor
+        self.share_graph_model = share_graph_model
         self.v_optimizer = None
         self.s_optimizer = None
         self.pretend_batch_size = 100
@@ -102,7 +103,7 @@ class Trainer(object):
                 self.v_optimizer.step()
                 epoch_v_loss += loss.data.item()
 
-                if update_counter % self.state_predictor_update_interval == 0:
+                if not self.share_graph_model and update_counter % self.state_predictor_update_interval == 0:
                     # optimize state predictor
                     self.s_optimizer.zero_grad()
                     _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
@@ -183,7 +184,7 @@ class Trainer(object):
 
             if not self.freeze_state_predictor:
                 # optimize state predictor
-                if batch_count % self.state_predictor_update_interval == 0:
+                if not self.share_graph_model and batch_count % self.state_predictor_update_interval == 0:
                     self.s_optimizer.zero_grad()
                     _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
                     loss = self.criterion(next_human_states_est, next_human_states)

@@ -32,6 +32,7 @@ class ModelPredictiveRL(Policy):
         self.robot_state_dim = 9
         self.human_state_dim = 5
         self.v_pref = 1
+        self.share_graph_model = None
         self.value_estimator = None
         self.state_predictor = None
         self.planning_depth = None
@@ -44,10 +45,19 @@ class ModelPredictiveRL(Policy):
         self.planning_depth = config.model_predictive_rl.planning_depth
         self.do_action_clip = config.model_predictive_rl.do_action_clip
         self.planning_width = config.model_predictive_rl.planning_width
-        graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
-        self.value_estimator = ValueEstimator(config, graph_model)
-        self.state_predictor = StatePredictor(config, graph_model, self.time_step)
-        self.model = [graph_model, self.value_estimator.value_network, self.state_predictor.human_motion_predictor]
+        self.share_graph_model = config.model_predictive_rl.share_graph_model
+        if self.share_graph_model:
+            graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
+            self.value_estimator = ValueEstimator(config, graph_model)
+            self.state_predictor = StatePredictor(config, graph_model, self.time_step)
+            self.model = [graph_model, self.value_estimator.value_network, self.state_predictor.human_motion_predictor]
+        else:
+            graph_model1 = RGL(config, self.robot_state_dim, self.human_state_dim)
+            self.value_estimator = ValueEstimator(config, graph_model1)
+            graph_model2 = RGL(config, self.robot_state_dim, self.human_state_dim)
+            self.state_predictor = StatePredictor(config, graph_model2, self.time_step)
+            self.model = [graph_model1, graph_model2, self.value_estimator.value_network,
+                          self.state_predictor.human_motion_predictor]
 
         logging.info('Planning depth: {}'.format(self.planning_depth))
         logging.info('Planning width: {}'.format(self.planning_width))
@@ -79,17 +89,30 @@ class ModelPredictiveRL(Policy):
         return self.value_estimator
 
     def get_state_dict(self):
-        return {
-            'graph_model': self.value_estimator.graph_model.state_dict(),
-            'value_network': self.value_estimator.value_network.state_dict(),
-            'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
-        }
+        if self.share_graph_model:
+            return {
+                'graph_model': self.value_estimator.graph_model.state_dict(),
+                'value_network': self.value_estimator.value_network.state_dict(),
+                'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
+            }
+        else:
+            return {
+                'graph_model1': self.value_estimator.graph_model.state_dict(),
+                'graph_model2': self.state_predictor.graph_model.state_dict(),
+                'value_network': self.value_estimator.value_network.state_dict(),
+                'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
+            }
 
     def get_traj(self):
         return self.traj
 
     def load_state_dict(self, state_dict):
-        self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
+        if self.share_graph_model:
+            self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
+        else:
+            self.value_estimator.graph_model.load_state_dict(state_dict['graph_model1'])
+            self.state_predictor.graph_model.load_state_dict(state_dict['graph_model2'])
+
         self.value_estimator.value_network.load_state_dict(state_dict['value_network'])
         self.state_predictor.human_motion_predictor.load_state_dict(state_dict['motion_predictor'])
 

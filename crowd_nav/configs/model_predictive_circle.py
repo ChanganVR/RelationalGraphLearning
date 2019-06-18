@@ -9,7 +9,7 @@ class EnvConfig(BaseEnvConfig):
         self.sim.test_scenario = 'circle_crossing'
         self.sim.square_width = 20
         self.sim.circle_radius = 5
-        self.sim.human_num = 2
+        self.sim.human_num = 5
         self.sim.group_num = 0
         self.sim.group_size = 0
         self.sim.nonstop_human = False
@@ -38,13 +38,14 @@ class PolicyConfig(BasePolicyConfig):
         self.model_predictive_rl = Config()
         self.model_predictive_rl.planning_depth = 1
         self.model_predictive_rl.planning_width = 1
-        self.model_predictive_rl.do_action_clip = True
+        self.model_predictive_rl.do_action_clip = False
         self.model_predictive_rl.motion_predictor_dims = [64, 5]
         self.model_predictive_rl.value_network_dims = [32, 100, 100, 1]
+        self.model_predictive_rl.share_graph_model = False
 
 
 class TrainConfig(BaseTrainConfig):
     def __init__(self, debug=False):
         super(TrainConfig, self).__init__(debug)
 
-        self.train.freeze_state_predictor = True
+        self.train.freeze_state_predictor = False
