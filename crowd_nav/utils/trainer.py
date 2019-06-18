@@ -6,21 +6,24 @@ from torch.utils.data import DataLoader
 
 
 class Trainer(object):
-    def __init__(self, value_estimator, state_predictor, memory, device, batch_size, optimizer_str, human_num,
-                 freeze_state_predictor, share_graph_model):
+    def __init__(self, value_estimator, state_predictor, memory, device, writer, batch_size, optimizer_str, human_num,
+                 reduce_sp_update_frequency, freeze_state_predictor, detach_state_predictor, share_graph_model):
         """
         Train the trainable model of a policy
         """
         self.value_estimator = value_estimator
         self.state_predictor = state_predictor
         self.device = device
+        self.writer = writer
         self.criterion = nn.MSELoss().to(device)
         self.memory = memory
         self.data_loader = None
         self.batch_size = batch_size
         self.optimizer_str = optimizer_str
+        self.reduce_sp_update_frequency = reduce_sp_update_frequency
         self.state_predictor_update_interval = human_num
         self.freeze_state_predictor = freeze_state_predictor
+        self.detach_state_predictor= detach_state_predictor
         self.share_graph_model = share_graph_model
         self.v_optimizer = None
         self.s_optimizer = None
@@ -39,7 +42,7 @@ class Trainer(object):
             [name for name, param in list(self.value_estimator.named_parameters()) +
              list(self.state_predictor.named_parameters())]), self.optimizer_str))
 
-    def optimize_epoch_pretend_batch(self, num_epochs, writer):
+    def optimize_epoch_pretend_batch(self, num_epochs):
         self.batch_size = 1
 
         if self.v_optimizer is None:
@@ -75,11 +78,11 @@ class Trainer(object):
                     count_within_batch = 0
             logging.debug('{}-th epoch ends'.format(epoch))
             average_epoch_loss = epoch_loss / len(self.memory)
-            writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
+            self.writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
             logging.info('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
         return average_epoch_loss
 
-    def optimize_epoch(self, num_epochs, writer):
+    def optimize_epoch(self, num_epochs):
         if self.v_optimizer is None:
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
@@ -103,8 +106,12 @@ class Trainer(object):
                 self.v_optimizer.step()
                 epoch_v_loss += loss.data.item()
 
-                if not self.share_graph_model and update_counter % self.state_predictor_update_interval == 0:
-                    # optimize state predictor
+                # optimize state predictor
+                update_state_predictor = True
+                if self.reduce_sp_update_frequency and update_counter % self.state_predictor_update_interval != 0:
+                    update_state_predictor = False
+                    
+                if update_state_predictor:
                     self.s_optimizer.zero_grad()
                     _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
                     loss = self.criterion(next_human_states_est, next_human_states)
@@ -114,8 +121,8 @@ class Trainer(object):
                 update_counter += 1
 
             logging.debug('{}-th epoch ends'.format(epoch))
-            writer.add_scalar('IL/epoch_v_loss', epoch_v_loss / len(self.memory), epoch)
-            writer.add_scalar('IL/epoch_s_loss', epoch_s_loss / len(self.memory), epoch)
+            self.writer.add_scalar('IL/epoch_v_loss', epoch_v_loss / len(self.memory), epoch)
+            self.writer.add_scalar('IL/epoch_s_loss', epoch_s_loss / len(self.memory), epoch)
             logging.info('Average loss in epoch %d: %.2E, %.2E', epoch, epoch_v_loss / len(self.memory),
                          epoch_s_loss / len(self.memory))
 
@@ -162,7 +169,7 @@ class Trainer(object):
         logging.info('Average loss : %.2E', average_loss)
         return average_loss
 
-    def optimize_batch(self, num_batches):
+    def optimize_batch(self, num_batches, episode):
         if self.v_optimizer is None:
             raise ValueError('Learning rate is not set!')
         if self.data_loader is None:
@@ -182,15 +189,21 @@ class Trainer(object):
             self.v_optimizer.step()
             v_losses += loss.data.item()
 
-            if not self.freeze_state_predictor:
-                # optimize state predictor
-                if not self.share_graph_model and batch_count % self.state_predictor_update_interval == 0:
-                    self.s_optimizer.zero_grad()
-                    _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
-                    loss = self.criterion(next_human_states_est, next_human_states)
-                    loss.backward()
-                    self.s_optimizer.step()
-                    s_losses += loss.data.item()
+            # optimize state predictor
+            update_state_predictor = True
+            if self.freeze_state_predictor:
+                update_state_predictor = False
+            elif self.reduce_sp_update_frequency and batch_count % self.state_predictor_update_interval == 0:
+                update_state_predictor = False
+            
+            if update_state_predictor:
+                self.s_optimizer.zero_grad()
+                _, next_human_states_est = self.state_predictor((robot_states, human_states), None,
+                                                                detach=self.detach_state_predictor)
+                loss = self.criterion(next_human_states_est, next_human_states)
+                loss.backward()
+                self.s_optimizer.step()
+                s_losses += loss.data.item()
 
             batch_count += 1
             if batch_count > num_batches:
@@ -199,6 +212,8 @@ class Trainer(object):
         average_v_loss = v_losses / num_batches
         average_s_loss = s_losses / num_batches
         logging.info('Average loss : %.2E, %.2E', average_v_loss, average_s_loss)
+        self.writer.add_scalar('RL/average_v_loss', average_v_loss, episode)
+        self.writer.add_scalar('RL/average_s_loss', average_s_loss, episode)
 
         return average_v_loss, average_s_loss
 

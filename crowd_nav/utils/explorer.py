@@ -7,14 +7,16 @@ from crowd_sim.envs.utils.info import *
 
 
 class Explorer(object):
-    def __init__(self, env, robot, device, memory=None, gamma=None, target_policy=None):
+    def __init__(self, env, robot, device, writer, memory=None, gamma=None, target_policy=None):
         self.env = env
         self.robot = robot
         self.device = device
+        self.writer = writer
         self.memory = memory
         self.gamma = gamma
         self.target_policy = target_policy
         self.target_model = None
+        self.statistics = None
 
     def update_target_model(self, target_model):
         self.target_model = copy.deepcopy(target_model)
@@ -55,7 +57,6 @@ class Explorer(object):
             actions = []
             rewards = []
             while not done:
-                #print('current test at time step:', len(rewards))
                 action = self.robot.act(ob)
                 ob, reward, done, info = self.env.step(action)
                 states.append(self.robot.policy.last_state)
@@ -116,7 +117,9 @@ class Explorer(object):
             logging.info('Collision cases: ' + ' '.join([str(x) for x in collision_cases]))
             logging.info('Timeout cases: ' + ' '.join([str(x) for x in timeout_cases]))
 
-        return success_rate, collision_rate, avg_nav_time, average(cumulative_rewards), average(average_returns)
+        self.statistics = success_rate, collision_rate, avg_nav_time, average(cumulative_rewards), average(average_returns)
+
+        return self.statistics
 
     def update_memory(self, states, actions, rewards, imitation_learning=False):
         if self.memory is None or self.gamma is None:
@@ -146,6 +149,14 @@ class Explorer(object):
             # self.memory.push((*state, value))
 
             self.memory.push((state[0], state[1], value, next_state[1]))
+
+    def log(self, tag_prefix, global_step):
+        sr, cr, time, reward, avg_return = self.statistics
+        self.writer.add_scalar(tag_prefix + '/success_rate', sr, global_step)
+        self.writer.add_scalar(tag_prefix + '/collision_rate', cr, global_step)
+        self.writer.add_scalar(tag_prefix + '/time', time, global_step)
+        self.writer.add_scalar(tag_prefix + '/reward', reward, global_step)
+        self.writer.add_scalar(tag_prefix + '/avg_return', avg_return, global_step)
 
 
 def average(input_list):

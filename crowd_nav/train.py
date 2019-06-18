@@ -129,10 +129,12 @@ def main(args):
     model = policy.get_model()
     batch_size = train_config.trainer.batch_size
     optimizer = train_config.trainer.optimizer
-    trainer = Trainer(model, policy.state_predictor, memory, device, batch_size, optimizer, env.human_num,
+    trainer = Trainer(model, policy.state_predictor, memory, device, writer, batch_size, optimizer, env.human_num,
+                      reduce_sp_update_frequency=train_config.train.reduce_sp_update_frequency,
                       freeze_state_predictor=train_config.train.freeze_state_predictor,
+                      detach_state_predictor=train_config.train.detach_state_predictor,
                       share_graph_model=policy_config.model_predictive_rl.share_graph_model)
-    explorer = Explorer(env, robot, device, memory, policy.gamma, target_policy=policy)
+    explorer = Explorer(env, robot, device, writer, memory, policy.gamma, target_policy=policy)
 
     # imitation learning
     if args.resume:
@@ -160,9 +162,9 @@ def main(args):
         robot.set_policy(il_policy)
         explorer.run_k_episodes(il_episodes, 'train', update_memory=True, imitation_learning=True)
         if train_with_pretend_batch:
-            trainer.optimize_epoch_pretend_batch(il_epochs, writer)
+            trainer.optimize_epoch_pretend_batch(il_epochs)
         else:
-            trainer.optimize_epoch(il_epochs, writer)
+            trainer.optimize_epoch(il_epochs)
         policy.save_model(il_weight_file)
         logging.info('Finish imitation learning. Weights saved.')
         logging.info('Experience set size: %d/%d', len(memory), memory.capacity)
@@ -186,21 +188,12 @@ def main(args):
 
     if episode % evaluation_interval == 0:
         logging.info('Evaluate the model instantly after imitation learning on the validation cases')
-        sr, cr, time, reward, avg_return = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
-        writer.add_scalar('val/success_rate', sr, episode // evaluation_interval)
-        writer.add_scalar('val/collision_rate', cr, episode // evaluation_interval)
-        writer.add_scalar('val/time', time, episode // evaluation_interval)
-        writer.add_scalar('val/reward', reward, episode // evaluation_interval)
-        writer.add_scalar('val/avg_return', avg_return, episode // evaluation_interval)
+        explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode)
+        explorer.log('val', episode // evaluation_interval)
 
-        #sr, cr, time, reward, avg_return = explorer.run_k_episodes(2000, 'train', episode=episode)
-        #logging.info('check the sr :{}, cr:{} ,time:{}, reward:{}, avg_return: {} after imitation learning'.format(sr, cr, time, reward, avg_return))
         if args.test_after_every_eval:
-            sr, cr, time, reward = explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, print_failure=True)
-            writer.add_scalar('test/success_rate', sr, episode // evaluation_interval)
-            writer.add_scalar('test/collision_rate', cr, episode // evaluation_interval)
-            writer.add_scalar('test/time', time, episode // evaluation_interval)
-            writer.add_scalar('test/reward', reward, episode // evaluation_interval)
+            explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, print_failure=True)
+            explorer.log('test', episode // evaluation_interval)
 
     if args.save_stable_models:
         stable_srs = []
@@ -221,43 +214,29 @@ def main(args):
             robot.policy.set_epsilon(epsilon)
 
             # sample k episodes into memory and optimize over the generated memory
-            sr, cr, time, reward, avg_return = explorer.run_k_episodes(sample_episodes, 'train', update_memory=True,
-                                                           episode=episode, epoch=e_id)
-            writer.add_scalar('train/success_rate', sr, episode + train_episodes * e_id)
-            writer.add_scalar('train/collision_rate', cr, episode + train_episodes * e_id)
-            writer.add_scalar('train/time', time, episode + train_episodes * e_id)
-            writer.add_scalar('train/reward', reward, episode + train_episodes * e_id)
-            writer.add_scalar('train/avg_return', avg_return, episode + train_episodes * e_id)
+            explorer.run_k_episodes(sample_episodes, 'train', update_memory=True, episode=episode, epoch=e_id)
+            explorer.log('train', episode + train_episodes * e_id)
 
             if train_with_pretend_batch:
                 trainer.optimize_pretend_batch(train_batches)
             else:
-                trainer.optimize_batch(train_batches)
+                trainer.optimize_batch(train_batches, episode)
             episode += 1
 
             if (episode + train_episodes * e_id) % target_update_interval == 0:
                 explorer.update_target_model(model)
             # evaluate the model
             if (episode + train_episodes * e_id) % evaluation_interval == 0:
-                sr, cr, time, reward, avg_return = explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
-                writer.add_scalar('val/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
-                writer.add_scalar('val/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
-                writer.add_scalar('val/time', time, (episode + train_episodes * e_id) // evaluation_interval)
-                writer.add_scalar('val/reward', reward, (episode + train_episodes * e_id) // evaluation_interval)
-                writer.add_scalar('val/avg_return', avg_return, (episode + train_episodes * e_id) // evaluation_interval)
+                explorer.run_k_episodes(env.case_size['val'], 'val', episode=episode, epoch=e_id)
+                explorer.log('val', (episode + train_episodes * e_id) // evaluation_interval)
 
                 if (episode + train_episodes * e_id) % checkpoint_interval == 0 and reward > best_val_reward:
                     best_val_reward = reward
                     best_val_model = copy.deepcopy(policy.get_state_dict())
             # test after every evaluation to check how the generalization performance evolves
                 if args.test_after_every_eval:
-                    sr, cr, time, reward, avg_return = explorer.run_k_episodes(
-                        env.case_size['test'], 'test', episode=episode, epoch=e_id, print_failure=True)
-                    writer.add_scalar('test/success_rate', sr, (episode + train_episodes * e_id) // evaluation_interval)
-                    writer.add_scalar('test/collision_rate', cr, (episode + train_episodes * e_id) // evaluation_interval)
-                    writer.add_scalar('test/time', time, (episode + train_episodes * e_id) // evaluation_interval)
-                    writer.add_scalar('test/reward', reward, (episode + train_episodes * e_id) // evaluation_interval)
-                    writer.add_scalar('test/avg_return', avg_return, (episode + train_episodes * e_id) // evaluation_interval)
+                    explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, epoch=e_id, print_failure=True)
+                    explorer.log('test', (episode + train_episodes * e_id) // evaluation_interval)
 
             if episode != 0 and (episode + train_episodes * e_id) % checkpoint_interval == 0:
                 current_checkpoint = (episode + train_episodes * e_id) // checkpoint_interval - 1
@@ -279,14 +258,11 @@ def main(args):
                         policy.save(save_every_stable_rl_weight_file)
                         logging.info('check the env.case_encounter: {}'.format(env.case_counter['test']))
                         sr, cr, time, reward = explorer.run_k_episodes(test_size, 'test', episode=episode, epoch=e_id, print_failure=True)
+                        explorer.log('stable_test', (episode + train_episodes * e_id) // stable_checkpoint_interval)
                         stable_srs.append(sr)
                         stable_crs.append(cr)
                         stable_times.append(time)
                         stable_rewards.append(reward)
-                        writer.add_scalar('stable_test/success_rate', sr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
-                        writer.add_scalar('stable_test/collision_rate', cr, (episode + train_episodes * e_id) // stable_checkpoint_interval)
-                        writer.add_scalar('stable_test/time', time, (episode + train_episodes * e_id) // stable_checkpoint_interval)
-                        writer.add_scalar('stable_test/reward', reward, (episode + train_episodes * e_id) // stable_checkpoint_interval)
 
     if args.save_stable_models:
         logging.info('the {} stable models average reward on the test scenarios are :{}'.format(len(stable_rewards), sum(stable_rewards)/len(stable_rewards)))
@@ -296,7 +272,6 @@ def main(args):
 
     # # test with the best val model
     if best_val_model is not None:
-        # TODO: replace that with
         policy.load_state_dict(best_val_model)
         torch.save(best_val_model, os.path.join(args.output_dir, 'best_val.pth'))
         logging.info('Save the best val model with the reward: {}'.format(best_val_reward))

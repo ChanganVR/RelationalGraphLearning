@@ -41,7 +41,7 @@ class PolicyConfig(BasePolicyConfig):
         self.model_predictive_rl.do_action_clip = False
         self.model_predictive_rl.motion_predictor_dims = [64, 5]
         self.model_predictive_rl.value_network_dims = [32, 100, 100, 1]
-        self.model_predictive_rl.share_graph_model = False
+        self.model_predictive_rl.share_graph_model = True
 
 
 class TrainConfig(BaseTrainConfig):
@@ -49,3 +49,5 @@ class TrainConfig(BaseTrainConfig):
         super(TrainConfig, self).__init__(debug)
 
         self.train.freeze_state_predictor = False
+        self.train.detach_state_predictor = True
+        self.train.reduce_sp_update_frequency = True
