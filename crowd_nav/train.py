@@ -194,7 +194,6 @@ def main(args):
 
         #sr, cr, time, reward, avg_return = explorer.run_k_episodes(2000, 'train', episode=episode)
         #logging.info('check the sr :{}, cr:{} ,time:{}, reward:{}, avg_return: {} after imitation learning'.format(sr, cr, time, reward, avg_return))
-        exit(0)
         if args.test_after_every_eval:
             sr, cr, time, reward = explorer.run_k_episodes(env.case_size['test'], 'test', episode=episode, print_failure=True)
             writer.add_scalar('test/success_rate', sr, episode // evaluation_interval)
