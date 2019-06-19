@@ -160,7 +160,7 @@ if __name__ == '__main__':
     parser.add_argument('--square', default=False, action='store_true')
     parser.add_argument('--circle', default=False, action='store_true')
     parser.add_argument('--video_file', type=str, default=None)
-    parser.add_argument('--video_dir', type=str, default='/home/hushah/Desktop/look-ahead/5h_holonomic_1d')
+    parser.add_argument('--video_dir', type=str, default=None)
     parser.add_argument('--traj', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--human_num', type=int, default=None)

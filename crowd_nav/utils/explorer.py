@@ -7,7 +7,7 @@ from crowd_sim.envs.utils.info import *
 
 
 class Explorer(object):
-    def __init__(self, env, robot, device, writer, memory=None, gamma=None, target_policy=None):
+    def __init__(self, env, robot, device, writer=None, memory=None, gamma=None, target_policy=None):
         self.env = env
         self.robot = robot
         self.device = device
