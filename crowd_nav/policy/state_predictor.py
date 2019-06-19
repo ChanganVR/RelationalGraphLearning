@@ -16,7 +16,7 @@ class StatePredictor(nn.Module):
         self.human_motion_predictor = mlp(config.gcn.X_dim, config.model_predictive_rl.motion_predictor_dims)
         self.time_step = time_step
 
-    def forward(self, state, action, time_step=0.25):
+    def forward(self, state, action, time_step=0.25, detach=False):
         """ Predict the next state tensor given current state as input.
 
         :return: tensor of shape (batch_size, # of agents, feature_size)
@@ -25,6 +25,8 @@ class StatePredictor(nn.Module):
         assert len(state[1].shape) == 3
 
         state_embedding = self.graph_model(state)
+        if detach:
+            state_embedding = state_embedding.detach()
         if action is None:
             # for training purpose
             next_robot_state = None
