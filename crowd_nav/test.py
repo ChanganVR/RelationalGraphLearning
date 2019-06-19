@@ -126,7 +126,7 @@ def main(args):
                 if args.policy == 'gcn':
                     args.video_file = os.path.join(args.video_dir, args.policy + '_' + policy_config.gcn.similarity_function)
                 else:
-                    args.video_file = os.path.join(args.video_dir, args.policy)
+                    args.video_file = os.path.join(args.video_dir, args.policy + '_depth_' + str(args.planning_depth) + '_width_' + str(args.planning_width))
                 args.video_file = args.video_file + '_' + args.phase + '_' + str(args.test_case) + '.mp4'
             if env.current_scenario.startswith('realsim'):
                 env.render('dynamic_video', args.video_file)
@@ -160,7 +160,7 @@ if __name__ == '__main__':
     parser.add_argument('--square', default=False, action='store_true')
     parser.add_argument('--circle', default=False, action='store_true')
     parser.add_argument('--video_file', type=str, default=None)
-    parser.add_argument('--video_dir', type=str, default=None)
+    parser.add_argument('--video_dir', type=str, default='/home/hushah/Desktop/look-ahead/5h_holonomic_1d')
     parser.add_argument('--traj', default=False, action='store_true')
     parser.add_argument('--debug', default=False, action='store_true')
     parser.add_argument('--human_num', type=int, default=None)
