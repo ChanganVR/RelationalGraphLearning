@@ -976,8 +976,8 @@ class CrowdSim(gym.Env):
                         print_feat()
                     if hasattr(self.robot.policy, 'get_X'):
                         print_X()
-                    #if hasattr(self.robot.policy, 'action_values'):
-                    #    plot_value_heatmap()
+                    if hasattr(self.robot.policy, 'action_values'):
+                        plot_value_heatmap()
                 else:
                     anim.event_source.start()
                 anim.running ^= True
@@ -1195,8 +1195,8 @@ class CrowdSim(gym.Env):
                             print_feat()
                         if hasattr(self.robot.policy, 'get_X'):
                             print_X()
-                        # if hasattr(self.robot.policy, 'action_values'):
-                        #    plot_value_heatmap()
+                        if hasattr(self.robot.policy, 'action_values'):
+                            plot_value_heatmap()
                 else:
                     anim.event_source.start()
                 anim.running ^= True
