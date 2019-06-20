@@ -165,6 +165,7 @@ class ModelPredictiveRL(Policy):
         if self.phase == 'train' and probability < self.epsilon:
             max_action = self.action_space[np.random.choice(len(self.action_space))]
         else:
+            self.action_values = list()
             max_action = None
             max_value = float('-inf')
             max_traj = None
@@ -181,6 +182,7 @@ class ModelPredictiveRL(Policy):
                 max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth, self.planning_width)
                 reward_est = self.estimate_reward(state, action)
                 value = reward_est + self.get_normalized_gamma() * max_next_return
+                self.action_values.append(value.tolist()[0][0])
                 if value > max_value:
                     max_value = value
                     max_action = action
