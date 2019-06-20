@@ -1152,6 +1152,8 @@ class CrowdSim(gym.Env):
                 rotations = self.robot.policy.rotations + [np.pi * 2]
                 r, th = np.meshgrid(speeds, rotations)
                 z = np.array(self.action_values[global_step % len(self.states)][1:])
+                print('time step :', global_step)
+                print('the action_values are: ', np.array(self.action_values[global_step % len(self.states)]).tolist())
                 z = (z - np.min(z)) / (np.max(z) - np.min(z))
                 z = np.reshape(z, (self.robot.policy.rotation_samples, self.robot.policy.speed_samples))
                 polar = plt.subplot(projection="polar")
