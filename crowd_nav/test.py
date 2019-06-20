@@ -83,7 +83,7 @@ def main(args):
     env.set_robot(robot)
     robot.time_step = env.time_step
     robot.set_policy(policy)
-    explorer = Explorer(env, robot, device, gamma=0.9)
+    explorer = Explorer(env, robot, device, None, gamma=0.9)
 
     train_config = config.TrainConfig(args.debug)
     epsilon_end = train_config.train.epsilon_end
