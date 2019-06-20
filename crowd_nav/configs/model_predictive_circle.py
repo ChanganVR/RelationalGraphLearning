@@ -50,4 +50,4 @@ class TrainConfig(BaseTrainConfig):
 
         self.train.freeze_state_predictor = False
         self.train.detach_state_predictor = True
-        self.train.reduce_sp_update_frequency = True
+        self.train.reduce_sp_update_frequency = False

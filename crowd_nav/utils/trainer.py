@@ -108,7 +108,7 @@ class Trainer(object):
 
                 # optimize state predictor
                 update_state_predictor = True
-                if self.reduce_sp_update_frequency and update_counter % self.state_predictor_update_interval != 0:
+                if update_counter % self.state_predictor_update_interval != 0:
                     update_state_predictor = False
                     
                 if update_state_predictor:

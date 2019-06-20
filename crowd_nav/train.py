@@ -296,7 +296,7 @@ if __name__ == '__main__':
     parser.add_argument('--layers', type=int, default=2)
     parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
     parser.add_argument('--layerwise_graph', default=False, action='store_true')
-    parser.add_argument('--skip_connection', default=False, action='store_true')
+    parser.add_argument('--skip_connection', default=True, action='store_true')
 
     # arguments for training with scenarios with variable number of pedestrians in one episode
     parser.add_argument('--pretend_batch', default=False, action='store_true')
