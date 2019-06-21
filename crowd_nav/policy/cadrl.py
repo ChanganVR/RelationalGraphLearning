@@ -86,9 +86,6 @@ class CADRL(Policy):
     def set_epsilon(self, epsilon):
         self.epsilon = epsilon
 
-    def get_model(self):
-        return self.model
-
     def build_action_space(self, v_pref):
         """
         Action space consists of 25 uniformly sampled actions in permitted range and 25 randomly sampled actions.
@@ -275,9 +272,3 @@ class CADRL(Policy):
                                   reshape((batch, -1))], dim=1), 2, dim=1, keepdim=True)
         new_state = torch.cat([dg, v_pref, theta, radius, vx, vy, px1, py1, vx1, vy1, radius1, da, radius_sum], dim=1)
         return new_state
-
-    def load_model(self, file):
-        self.model.load_state_dict(torch.load(file))
-
-    def save_model(self, file):
-        torch.save(self.model.state_dict())

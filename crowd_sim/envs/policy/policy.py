@@ -1,5 +1,6 @@
 import abc
 import numpy as np
+import torch
 
 
 class Policy(object):
@@ -32,17 +33,20 @@ class Policy(object):
     def set_time_step(self, time_step):
         self.time_step = time_step
 
-    @abc.abstractmethod
     def get_model(self):
-        return
+        return self.model
 
-    @abc.abstractmethod
     def save_model(self, file):
-        return
+        torch.save(self.model.state_dict(), file)
 
-    @abc.abstractmethod
     def load_model(self, file):
-        return
+        self.model.load_state_dict(torch.load(file))
+
+    def get_state_dict(self):
+        return self.model.state_dict()
+
+    def load_state_dict(self, state_dict):
+        self.model.load_state_dict(state_dict)
 
     @abc.abstractmethod
     def predict(self, state):
