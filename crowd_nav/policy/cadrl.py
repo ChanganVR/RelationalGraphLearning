@@ -275,3 +275,9 @@ class CADRL(Policy):
                                   reshape((batch, -1))], dim=1), 2, dim=1, keepdim=True)
         new_state = torch.cat([dg, v_pref, theta, radius, vx, vy, px1, py1, vx1, vy1, radius1, da, radius_sum], dim=1)
         return new_state
+
+    def load_model(self, file):
+        self.model.load_state_dict(torch.load(file))
+
+    def save_model(self, file):
+        torch.save(self.model.state_dict())
