@@ -7,6 +7,7 @@ from crowd_sim.envs.policy.policy import Policy
 from crowd_sim.envs.utils.action import ActionRot, ActionXY
 from crowd_sim.envs.utils.state import ObservableState, FullState, tensor_to_joint_state
 from crowd_sim.envs.utils.utils import point_to_segment_dist
+from crowd_sim.envs.utils.utils import VTree, print_vtree
 from crowd_nav.policy.state_predictor import StatePredictor
 from crowd_nav.policy.graph_model import RGL
 from crowd_nav.policy.value_estimator import ValueEstimator
@@ -39,6 +40,12 @@ class ModelPredictiveRL(Policy):
         self.planning_width = None
         self.do_action_clip = None
         self.traj = None
+
+        #for visualization
+        self.clipped_action_values = None
+        self.dilated_action_values = None
+        self.Q_d = dict()
+        self.vtree = None
 
     def configure(self, config):
         self.set_common_parameters(config)
@@ -106,6 +113,9 @@ class ModelPredictiveRL(Policy):
     def get_traj(self):
         return self.traj
 
+    def get_vtree(self):
+        return self.vtree
+
     def load_state_dict(self, state_dict):
         if self.share_graph_model:
             self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
@@ -151,6 +161,7 @@ class ModelPredictiveRL(Policy):
         The input to the value network is always of shape (batch_size, # humans, rotated joint state length)
 
         """
+        self.action_clip_counter = 0
         if self.phase is None or self.device is None:
             raise AttributeError('Phase, device attributes have to be set!')
         if self.phase == 'train' and self.epsilon is None:
@@ -165,24 +176,39 @@ class ModelPredictiveRL(Policy):
         if self.phase == 'train' and probability < self.epsilon:
             max_action = self.action_space[np.random.choice(len(self.action_space))]
         else:
-            self.action_values = list()
+            self.vtree = VTree(state, 0, self.planning_width)
+            if self.do_action_clip:
+                #self.action_values = [-float('Inf') for _ in range(len(self.action_space))]
+                for i in range(self.planning_depth):
+                    self.Q_d[i+1] = list()
+                self.action_values = [0 for _ in range(len(self.action_space))]
+
+                self.clipped_action_values = list()
+            else:
+                self.action_values = list()
             max_action = None
             max_value = float('-inf')
             max_traj = None
 
             if self.do_action_clip:
                 state_tensor = state.to_tensor(add_batch_size=True, device=self.device)
-                action_space_clipped = self.action_clip(state_tensor, self.action_space, self.planning_width)
+                action_space_clipped = self.action_clip(state_tensor, self.action_space, self.planning_width, vtree=self.vtree)
             else:
                 action_space_clipped = self.action_space
 
             for action in action_space_clipped:
                 state_tensor = state.to_tensor(add_batch_size=True, device=self.device)
                 next_state = self.state_predictor(state_tensor, action)
-                max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth, self.planning_width)
+                self.vtree.add_child(action, next_state, self.planning_width)
+                max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth, self.planning_width, self.vtree.children[action])
                 reward_est = self.estimate_reward(state, action)
                 value = reward_est + self.get_normalized_gamma() * max_next_return
-                self.action_values.append(value.tolist()[0][0])
+                if self.do_action_clip:
+                    action_index = self.action_space.index(action)
+                    self.clipped_action_values.append(value.tolist()[0][0])
+                    self.action_values[action_index] = value.tolist()[0][0]
+                else:
+                    self.action_values.append(value.tolist()[0][0])
                 if value > max_value:
                     max_value = value
                     max_action = action
@@ -195,23 +221,30 @@ class ModelPredictiveRL(Policy):
         else:
             self.traj = max_traj
 
+        #print_vtree(self.get_vtree(), self.action_space)
         return max_action
 
-    def action_clip(self, state, action_space, width, depth=1):
+    def action_clip(self, state, action_space, width, vtree):
+        depth = 1
+        self.action_clip_counter += 1
         values = []
 
         for action in action_space:
             next_state_est = self.state_predictor(state, action)
-            next_return, _ = self.V_planning(next_state_est, depth, width)
             reward_est = self.estimate_reward(state, action)
+
+            vtree.add_one_step_trajs(action, reward_est, next_state_est)
+            next_return, _ = self.V_planning(next_state_est, depth, width)
+
             value = reward_est + self.get_normalized_gamma() * next_return
             values.append(value)
-
+            if self.action_clip_counter == 1:
+                self.Q_d[1].append(value.data.tolist()[0][0])
         max_indexes = np.argpartition(np.array(values), -width)[-width:]
         clipped_action_space = [action_space[i] for i in max_indexes]
         return clipped_action_space
 
-    def V_planning(self, state, depth, width):
+    def V_planning(self, state, depth, width, vtree=None):
         """ Plans n steps into future. Computes the value for the current state as well as the trajectories
         defined as a list of (state, action, reward) triples
 
@@ -219,13 +252,14 @@ class ModelPredictiveRL(Policy):
         :param depth:
         :return:
         """
-
         current_state_value = self.value_estimator(state)
         if depth == 1:
+            if vtree != None:
+                vtree.state_value_d_1 = current_state_value.data.tolist()[0][0]
             return current_state_value, [(state, None, None)]
 
         if self.do_action_clip:
-            action_space_clipped = self.action_clip(state, self.action_space, width)
+            action_space_clipped = self.action_clip(state, self.action_space, width, vtree)
         else:
             action_space_clipped = self.action_space
 
@@ -235,9 +269,10 @@ class ModelPredictiveRL(Policy):
         for action in action_space_clipped:
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state, action)
-            next_value, next_traj = self.V_planning(next_state_est, depth - 1, self.planning_width)
+            vtree.add_child(action, next_state_est, width)
+            next_value, next_traj = self.V_planning(next_state_est, depth - 1, self.planning_width, vtree.children[action])
             # TODO: verify this equation
-            return_value = current_state_value / depth + (depth - 1) / depth * next_value
+            return_value = current_state_value / depth + (depth - 1) / depth * (next_value + reward_est)
 
             returns.append(return_value)
             trajs.append([(state, action, reward_est)] + next_traj)
@@ -315,3 +350,20 @@ class ModelPredictiveRL(Policy):
             to(self.device)
 
         return robot_state_tensor, human_states_tensor
+
+class Discomfort(object):
+    def __init__(self, min_dist):
+        self.min_dist = min_dist
+
+
+
+
+
+
+
+
+
+
+
+
+
