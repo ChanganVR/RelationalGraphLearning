@@ -129,10 +129,10 @@ def main(args):
     optimizer = train_config.trainer.optimizer
     if args.policy == 'model_predictive_rl':
         trainer = MPRLTrainer(model, policy.state_predictor, memory, device, writer, batch_size, optimizer, env.human_num,
-                          reduce_sp_update_frequency=train_config.train.reduce_sp_update_frequency,
-                          freeze_state_predictor=train_config.train.freeze_state_predictor,
-                          detach_state_predictor=train_config.train.detach_state_predictor,
-                          share_graph_model=policy_config.model_predictive_rl.share_graph_model)
+                              reduce_sp_update_frequency=train_config.train.reduce_sp_update_frequency,
+                              freeze_state_predictor=train_config.train.freeze_state_predictor,
+                              detach_state_predictor=train_config.train.detach_state_predictor,
+                              share_graph_model=policy_config.model_predictive_rl.share_graph_model)
     else:
         trainer = VNRLTrainer(model, memory, device, batch_size, optimizer, writer)
     explorer = Explorer(env, robot, device, writer, memory, policy.gamma, target_policy=policy)

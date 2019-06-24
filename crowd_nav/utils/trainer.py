@@ -24,7 +24,7 @@ class MPRLTrainer(object):
         self.reduce_sp_update_frequency = reduce_sp_update_frequency
         self.state_predictor_update_interval = human_num
         self.freeze_state_predictor = freeze_state_predictor
-        self.detach_state_predictor= detach_state_predictor
+        self.detach_state_predictor = detach_state_predictor
         self.share_graph_model = share_graph_model
         self.v_optimizer = None
         self.s_optimizer = None
@@ -33,15 +33,22 @@ class MPRLTrainer(object):
     def set_learning_rate(self, learning_rate):
         if self.optimizer_str == 'Adam':
             self.v_optimizer = optim.Adam(self.value_estimator.parameters(), lr=learning_rate)
-            self.s_optimizer = optim.Adam(self.state_predictor.parameters(), lr=learning_rate)
+            if self.state_predictor.trainable:
+                self.s_optimizer = optim.Adam(self.state_predictor.parameters(), lr=learning_rate)
         elif self.optimizer_str == 'SGD':
             self.v_optimizer = optim.SGD(self.value_estimator.parameters(), lr=learning_rate, momentum=0.9)
-            self.s_optimizer = optim.SGD(self.state_predictor.parameters(), lr=learning_rate)
+            if self.state_predictor.trainable:
+                self.s_optimizer = optim.SGD(self.state_predictor.parameters(), lr=learning_rate)
         else:
             raise NotImplementedError
-        logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
-            [name for name, param in list(self.value_estimator.named_parameters()) +
-             list(self.state_predictor.named_parameters())]), self.optimizer_str))
+
+        if self.state_predictor.trainable:
+            logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
+                [name for name, param in list(self.value_estimator.named_parameters()) +
+                 list(self.state_predictor.named_parameters())]), self.optimizer_str))
+        else:
+            logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
+                [name for name, param in list(self.value_estimator.named_parameters())]), self.optimizer_str))
 
     def optimize_epoch_pretend_batch(self, num_epochs):
         self.batch_size = 1
@@ -108,18 +115,19 @@ class MPRLTrainer(object):
                 epoch_v_loss += loss.data.item()
 
                 # optimize state predictor
-                update_state_predictor = True
-                if update_counter % self.state_predictor_update_interval != 0:
-                    update_state_predictor = False
-                    
-                if update_state_predictor:
-                    self.s_optimizer.zero_grad()
-                    _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
-                    loss = self.criterion(next_human_states_est, next_human_states)
-                    loss.backward()
-                    self.s_optimizer.step()
-                    epoch_s_loss += loss.data.item()
-                update_counter += 1
+                if self.state_predictor.trainable:
+                    update_state_predictor = True
+                    if update_counter % self.state_predictor_update_interval != 0:
+                        update_state_predictor = False
+
+                    if update_state_predictor:
+                        self.s_optimizer.zero_grad()
+                        _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
+                        loss = self.criterion(next_human_states_est, next_human_states)
+                        loss.backward()
+                        self.s_optimizer.step()
+                        epoch_s_loss += loss.data.item()
+                    update_counter += 1
 
             logging.debug('{}-th epoch ends'.format(epoch))
             self.writer.add_scalar('IL/epoch_v_loss', epoch_v_loss / len(self.memory), epoch)
@@ -191,20 +199,21 @@ class MPRLTrainer(object):
             v_losses += loss.data.item()
 
             # optimize state predictor
-            update_state_predictor = True
-            if self.freeze_state_predictor:
-                update_state_predictor = False
-            elif self.reduce_sp_update_frequency and batch_count % self.state_predictor_update_interval == 0:
-                update_state_predictor = False
-            
-            if update_state_predictor:
-                self.s_optimizer.zero_grad()
-                _, next_human_states_est = self.state_predictor((robot_states, human_states), None,
-                                                                detach=self.detach_state_predictor)
-                loss = self.criterion(next_human_states_est, next_human_states)
-                loss.backward()
-                self.s_optimizer.step()
-                s_losses += loss.data.item()
+            if self.state_predictor.trainable:
+                update_state_predictor = True
+                if self.freeze_state_predictor:
+                    update_state_predictor = False
+                elif self.reduce_sp_update_frequency and batch_count % self.state_predictor_update_interval == 0:
+                    update_state_predictor = False
+
+                if update_state_predictor:
+                    self.s_optimizer.zero_grad()
+                    _, next_human_states_est = self.state_predictor((robot_states, human_states), None,
+                                                                    detach=self.detach_state_predictor)
+                    loss = self.criterion(next_human_states_est, next_human_states)
+                    loss.backward()
+                    self.s_optimizer.step()
+                    s_losses += loss.data.item()
 
             batch_count += 1
             if batch_count > num_batches:
@@ -217,32 +226,6 @@ class MPRLTrainer(object):
         self.writer.add_scalar('RL/average_s_loss', average_s_loss, episode)
 
         return average_v_loss, average_s_loss
-#
-#
-# def pad_batch(batch):
-#     """
-#     args:
-#         batch - list of (tensor, label)
-#
-#     return:
-#         xs - a tensor of all examples in 'batch' after padding
-#         ys - a LongTensor of all labels in batch
-#     """
-#     # sort the sequences in the decreasing order of length
-#     sequences = sorted([x for x, y in batch], reverse=True, key=lambda x: x.size()[0])
-#     packed_sequences = torch.nn.utils.rnn.pack_sequence(sequences)
-#     xs = torch.nn.utils.rnn.pad_packed_sequence(packed_sequences, batch_first=True)
-#     ys = torch.Tensor([y for x, y in batch]).unsqueeze(1)
-#
-#     return xs, ys
-#
-#
-# def pack_batch(batch):
-#     robot_states = torch.Tensor([x[0][0] for x, y in batch])
-#     human_states = torch.Tensor([x[1] for x, y in batch])
-#     values = torch.Tensor([y for y in batch])
-#
-#     return (robot_states, human_states), values
 
 
 class VNRLTrainer(object):

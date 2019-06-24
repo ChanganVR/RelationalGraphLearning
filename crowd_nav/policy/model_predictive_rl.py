@@ -5,9 +5,9 @@ from numpy.linalg import norm
 import itertools
 from crowd_sim.envs.policy.policy import Policy
 from crowd_sim.envs.utils.action import ActionRot, ActionXY
-from crowd_sim.envs.utils.state import ObservableState, FullState, tensor_to_joint_state
+from crowd_sim.envs.utils.state import tensor_to_joint_state
 from crowd_sim.envs.utils.utils import point_to_segment_dist
-from crowd_nav.policy.state_predictor import StatePredictor
+from crowd_nav.policy.state_predictor import StatePredictor, LinearStatePredictor
 from crowd_nav.policy.graph_model import RGL
 from crowd_nav.policy.value_estimator import ValueEstimator
 
@@ -34,6 +34,7 @@ class ModelPredictiveRL(Policy):
         self.v_pref = 1
         self.share_graph_model = None
         self.value_estimator = None
+        self.linear_state_predictor = None
         self.state_predictor = None
         self.planning_depth = None
         self.planning_width = None
@@ -46,18 +47,26 @@ class ModelPredictiveRL(Policy):
         self.do_action_clip = config.model_predictive_rl.do_action_clip
         self.planning_width = config.model_predictive_rl.planning_width
         self.share_graph_model = config.model_predictive_rl.share_graph_model
-        if self.share_graph_model:
+        self.linear_state_predictor = config.model_predictive_rl.linear_state_predictor
+
+        if self.linear_state_predictor:
+            self.state_predictor = LinearStatePredictor(config, self.time_step)
             graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
             self.value_estimator = ValueEstimator(config, graph_model)
-            self.state_predictor = StatePredictor(config, graph_model, self.time_step)
-            self.model = [graph_model, self.value_estimator.value_network, self.state_predictor.human_motion_predictor]
+            self.model = [graph_model, self.value_estimator.value_network]
         else:
-            graph_model1 = RGL(config, self.robot_state_dim, self.human_state_dim)
-            self.value_estimator = ValueEstimator(config, graph_model1)
-            graph_model2 = RGL(config, self.robot_state_dim, self.human_state_dim)
-            self.state_predictor = StatePredictor(config, graph_model2, self.time_step)
-            self.model = [graph_model1, graph_model2, self.value_estimator.value_network,
-                          self.state_predictor.human_motion_predictor]
+            if self.share_graph_model:
+                graph_model = RGL(config, self.robot_state_dim, self.human_state_dim)
+                self.value_estimator = ValueEstimator(config, graph_model)
+                self.state_predictor = StatePredictor(config, graph_model, self.time_step)
+                self.model = [graph_model, self.value_estimator.value_network, self.state_predictor.human_motion_predictor]
+            else:
+                graph_model1 = RGL(config, self.robot_state_dim, self.human_state_dim)
+                self.value_estimator = ValueEstimator(config, graph_model1)
+                graph_model2 = RGL(config, self.robot_state_dim, self.human_state_dim)
+                self.state_predictor = StatePredictor(config, graph_model2, self.time_step)
+                self.model = [graph_model1, graph_model2, self.value_estimator.value_network,
+                              self.state_predictor.human_motion_predictor]
 
         logging.info('Planning depth: {}'.format(self.planning_depth))
         logging.info('Planning width: {}'.format(self.planning_width))
@@ -89,32 +98,42 @@ class ModelPredictiveRL(Policy):
         return self.value_estimator
 
     def get_state_dict(self):
-        if self.share_graph_model:
-            return {
-                'graph_model': self.value_estimator.graph_model.state_dict(),
-                'value_network': self.value_estimator.value_network.state_dict(),
-                'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
-            }
+        if self.state_predictor.trainable:
+            if self.share_graph_model:
+                return {
+                    'graph_model': self.value_estimator.graph_model.state_dict(),
+                    'value_network': self.value_estimator.value_network.state_dict(),
+                    'motion_predictor': self.state_predictor.linear_motion_approximator.state_dict()
+                }
+            else:
+                return {
+                    'graph_model1': self.value_estimator.graph_model.state_dict(),
+                    'graph_model2': self.state_predictor.graph_model.state_dict(),
+                    'value_network': self.value_estimator.value_network.state_dict(),
+                    'motion_predictor': self.state_predictor.linear_motion_approximator.state_dict()
+                }
         else:
             return {
-                'graph_model1': self.value_estimator.graph_model.state_dict(),
-                'graph_model2': self.state_predictor.graph_model.state_dict(),
-                'value_network': self.value_estimator.value_network.state_dict(),
-                'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
-            }
+                    'graph_model': self.value_estimator.graph_model.state_dict(),
+                    'value_network': self.value_estimator.value_network.state_dict()
+                }
 
     def get_traj(self):
         return self.traj
 
     def load_state_dict(self, state_dict):
-        if self.share_graph_model:
-            self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
-        else:
-            self.value_estimator.graph_model.load_state_dict(state_dict['graph_model1'])
-            self.state_predictor.graph_model.load_state_dict(state_dict['graph_model2'])
+        if self.state_predictor.trainable:
+            if self.share_graph_model:
+                self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
+            else:
+                self.value_estimator.graph_model.load_state_dict(state_dict['graph_model1'])
+                self.state_predictor.graph_model.load_state_dict(state_dict['graph_model2'])
 
-        self.value_estimator.value_network.load_state_dict(state_dict['value_network'])
-        self.state_predictor.human_motion_predictor.load_state_dict(state_dict['motion_predictor'])
+            self.value_estimator.value_network.load_state_dict(state_dict['value_network'])
+            self.state_predictor.linear_motion_approximator.load_state_dict(state_dict['motion_predictor'])
+        else:
+            self.value_estimator.graph_model.load_state_dict[state_dict['graph_model']]
+            self.value_estimator.value_network.load_state_dict[state_dict['value_network']]
 
     def save_model(self, file):
         torch.save(self.get_state_dict(), file)
@@ -213,9 +232,6 @@ class ModelPredictiveRL(Policy):
         """ Plans n steps into future. Computes the value for the current state as well as the trajectories
         defined as a list of (state, action, reward) triples
 
-        :param state:
-        :param depth:
-        :return:
         """
 
         current_state_value = self.value_estimator(state)

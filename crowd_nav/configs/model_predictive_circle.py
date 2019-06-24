@@ -8,7 +8,7 @@ class EnvConfig(BaseEnvConfig):
         self.sim.train_val_scenario = 'circle_crossing'
         self.sim.test_scenario = 'circle_crossing'
         self.sim.square_width = 20
-        self.sim.circle_radius = 5
+        self.sim.circle_radius = 4
         self.sim.human_num = 5
         self.sim.group_num = 0
         self.sim.group_size = 0
@@ -30,12 +30,14 @@ class PolicyConfig(BasePolicyConfig):
         self.action_space.kinematics = 'holonomic'
         self.action_space.speed_samples = 5
         self.action_space.rotation_samples = 16
+        self.action_space.query_env = False
 
         # self.action_space.kinematics = 'unicycle'
         # self.action_space.speed_samples = 3
         # self.action_space.rotation_samples = 5
 
         self.model_predictive_rl = Config()
+        self.model_predictive_rl.linear_state_predictor = True
         self.model_predictive_rl.planning_depth = 1
         self.model_predictive_rl.planning_width = 1
         self.model_predictive_rl.do_action_clip = False
@@ -47,6 +49,9 @@ class PolicyConfig(BasePolicyConfig):
 class TrainConfig(BaseTrainConfig):
     def __init__(self, debug=False):
         super(TrainConfig, self).__init__(debug)
+
+        # self.trainer.optimizer = 'SGD'
+        # self.imitation_learning.il_learning_rate = 0.01
 
         self.train.freeze_state_predictor = False
         self.train.detach_state_predictor = True
