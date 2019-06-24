@@ -10,7 +10,7 @@ from crowd_sim.envs.utils.action import ActionRot
 from crowd_sim.envs.utils.human import Human
 from crowd_sim.envs.utils.info import *
 from crowd_sim.envs.utils.utils import point_to_segment_dist
-from crowd_sim.envs.utils.utils import print_vtree
+from crowd_sim.envs.utils.utils import print_vtree, plot_vtree
 from crowd_sim.envs.realsim_utils.GrandCentral import *
 
 
@@ -444,7 +444,6 @@ class CrowdSim(gym.Env):
         self.rewards = list()
         if hasattr(self.robot.policy, 'action_values'):
             self.action_values = list()
-            self.Q_d_1 = list()
         if hasattr(self.robot.policy, 'get_attention_weights'):
             self.attention_weights = list()
         if hasattr(self.robot.policy, 'get_matrix_A'):
@@ -457,6 +456,8 @@ class CrowdSim(gym.Env):
             self.trajs = list()
         if hasattr(self.robot.policy, 'vtree'):
             self.vtrees = list()
+        if hasattr(self.robot.policy, 'action_taken'):
+            self.actions_taken = list()
         # get current observation
         if self.robot.sensor == 'coordinates':
             ob = self.compute_observation_for(self.robot)
@@ -581,9 +582,6 @@ class CrowdSim(gym.Env):
             # store state, action value and attention weights
             if hasattr(self.robot.policy, 'action_values'):
                 self.action_values.append(self.robot.policy.action_values)
-                self.Q_d_1.append(self.robot.policy.Q_d[1])
-            #if hasattr(self.robot.policy, 'Q_d'):
-            #    self.Q_d[0]
             if hasattr(self.robot.policy, 'get_attention_weights'):
                 self.attention_weights.append(self.robot.policy.get_attention_weights())
             if hasattr(self.robot.policy, 'get_matrix_A'):
@@ -596,6 +594,11 @@ class CrowdSim(gym.Env):
                 self.trajs.append(self.robot.policy.get_traj())
             if hasattr(self.robot.policy, 'vtree'):
                 self.vtrees.append(self.robot.policy.get_vtree())
+            if hasattr(self.robot.policy, 'action_taken'):
+                self.actions_taken.append(self.robot.policy.get_action_taken())
+
+            self.states.append([self.robot.get_full_state(), [human.get_full_state() for human in self.humans],
+                                [human.id for human in self.humans]])
 
             # update all agents
             self.robot.step(action)
@@ -605,8 +608,10 @@ class CrowdSim(gym.Env):
                     self.generate_human(human)
 
             self.global_time += self.time_step
+            '''
             self.states.append([self.robot.get_full_state(), [human.get_full_state() for human in self.humans],
                                 [human.id for human in self.humans]])
+            '''
             self.robot_actions.append(action)
             self.rewards.append(reward)
 
@@ -1157,12 +1162,12 @@ class CrowdSim(gym.Env):
                 #                                              agent.vx, agent.vy, agent.theta))
 
                 # when any key is pressed draw the action value plot
-                #fig, axis = plt.subplots()
+                fig, axis = plt.subplots()
                 if if_clipped:
                     print('to plot the clipped action values')
                     action_values = self.action_values
-                    plot_name = 'clipped_action_values at time: ' + str(global_step)
-                    ax = fig.add_subplot(211, projection='polar')
+                    #plot_name = 'clipped_action_values at time: ' + str(global_step)
+                    ax = fig.add_subplot(111, projection='polar')
                 else:
                     print('to plot the Q_1 for all actions')
                     action_values = self.Q_d_1
@@ -1226,31 +1231,39 @@ class CrowdSim(gym.Env):
                     print(self.Xs[global_step])
 
             def on_click(event):
-                if anim.running:
-                    anim.event_source.stop()
-                    if event.key == 'a':
-                        if hasattr(self.robot.policy, 'get_matrix_A'):
-                            print_matrix_A()
-                        if hasattr(self.robot.policy, 'get_feat'):
-                            print_feat()
-                        if hasattr(self.robot.policy, 'get_X'):
-                            print_X()
-                        '''
-                        if hasattr(self.robot.policy, 'action_values'):
-                            plot_value_heatmap(if_clipped = False)
-                        
-                        if hasattr(self.robot.policy, 'action_values'):
-                            fig, axis = plt.subplots()
-                            plot_value_heatmap(if_clipped = True)
-                            plot_value_heatmap(if_clipped = False)
-                        '''
-                    if event.key == 'v':
-                        if hasattr(self.robot.policy, 'vtree'):
-                            print('******plot the vtree at time step ' + str(global_step) + '********')
-                            print_vtree(self.vtrees[global_step], self.robot.policy.action_space)
-                else:
-                    anim.event_source.start()
-                anim.running ^= True
+                if event.key == 'a':
+                    if hasattr(self.robot.policy, 'get_matrix_A'):
+                        print_matrix_A()
+                    if hasattr(self.robot.policy, 'get_feat'):
+                        print_feat()
+                    if hasattr(self.robot.policy, 'get_X'):
+                        print_X()
+                    
+                    if hasattr(self.robot.policy, 'action_values'):
+                        plot_value_heatmap(if_clipped = False)
+                    '''
+                    if hasattr(self.robot.policy, 'action_values'):
+                        fig, axis = plt.subplots()
+                        plot_value_heatmap(if_clipped = True)
+                        plot_value_heatmap(if_clipped = False)
+                    '''
+                elif event.key == 'v':
+                    if hasattr(self.robot.policy, 'vtree'):
+                        print('***************************************************************************************************************')
+                        action_taken = self.actions_taken[global_step]
+                        action_taken_index = self.robot.policy.action_space.index(action_taken)
+                        print('===============action going to taken at time step ' + str(global_step) + ' is : a_' + str(
+                                action_taken_index) + ' vx: ' + str(action_taken.vx) + ' vy: ' + str(action_taken.vy))
+                        print('===============plot the vtree at time step ' + str(global_step) + '===============')
+                        print_vtree(self.vtrees[global_step], self.robot.policy.action_space, self.robot, global_step, action_taken_index)
+                        # plot_vtree(self.vtrees[global_step], self.robot.policy.action_space, plt, global_step)
+                        print('***************************************************************************************************************')
+                elif event.key == ' ':
+                    if anim.running:
+                        anim.event_source.stop()
+                    else:
+                        anim.event_source.start()
+                    anim.running ^= True
 
             fig.canvas.mpl_connect('key_press_event', on_click)
             anim = animation.FuncAnimation(fig, update, frames=len(self.states), interval=self.time_step * 500)

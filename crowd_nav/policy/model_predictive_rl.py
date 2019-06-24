@@ -46,6 +46,7 @@ class ModelPredictiveRL(Policy):
         self.dilated_action_values = None
         self.Q_d = dict()
         self.vtree = None
+        self.action_taken = None
 
     def configure(self, config):
         self.set_common_parameters(config)
@@ -115,6 +116,9 @@ class ModelPredictiveRL(Policy):
 
     def get_vtree(self):
         return self.vtree
+
+    def get_action_taken(self):
+        return self.action_taken
 
     def load_state_dict(self, state_dict):
         if self.share_graph_model:
@@ -220,8 +224,8 @@ class ModelPredictiveRL(Policy):
             self.last_state = self.transform(state)
         else:
             self.traj = max_traj
+            self.action_taken = max_action
 
-        #print_vtree(self.get_vtree(), self.action_space)
         return max_action
 
     def action_clip(self, state, action_space, width, vtree):
@@ -233,14 +237,15 @@ class ModelPredictiveRL(Policy):
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state, action)
 
-            vtree.add_one_step_trajs(action, reward_est, next_state_est)
             next_return, _ = self.V_planning(next_state_est, depth, width)
+            vtree.add_one_step_trajs(action, reward_est, next_state_est, next_return.data.tolist()[0][0])
 
             value = reward_est + self.get_normalized_gamma() * next_return
             values.append(value)
             if self.action_clip_counter == 1:
                 self.Q_d[1].append(value.data.tolist()[0][0])
-        max_indexes = np.argpartition(np.array(values), -width)[-width:]
+        #max_indexes = np.argpartition(np.array(values), -width)[-width:]
+        max_indexes = np.array(values).argsort()[::-1][:width]
         clipped_action_space = [action_space[i] for i in max_indexes]
         return clipped_action_space
 
@@ -253,9 +258,11 @@ class ModelPredictiveRL(Policy):
         :return:
         """
         current_state_value = self.value_estimator(state)
+
+        if vtree != None:
+            vtree.state_value_d_1 = current_state_value.data.tolist()[0][0]
+
         if depth == 1:
-            if vtree != None:
-                vtree.state_value_d_1 = current_state_value.data.tolist()[0][0]
             return current_state_value, [(state, None, None)]
 
         if self.do_action_clip:
@@ -270,9 +277,10 @@ class ModelPredictiveRL(Policy):
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state, action)
             vtree.add_child(action, next_state_est, width)
+            vtree.children[action].state_value_d_1 = next_state_est
             next_value, next_traj = self.V_planning(next_state_est, depth - 1, self.planning_width, vtree.children[action])
             # TODO: verify this equation
-            return_value = current_state_value / depth + (depth - 1) / depth * (next_value + reward_est)
+            return_value = current_state_value / depth + (depth - 1) / depth * (self.get_normalized_gamma() * next_value + reward_est)
 
             returns.append(return_value)
             trajs.append([(state, action, reward_est)] + next_traj)
