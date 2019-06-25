@@ -132,8 +132,8 @@ class ModelPredictiveRL(Policy):
             self.value_estimator.value_network.load_state_dict(state_dict['value_network'])
             self.state_predictor.linear_motion_approximator.load_state_dict(state_dict['motion_predictor'])
         else:
-            self.value_estimator.graph_model.load_state_dict[state_dict['graph_model']]
-            self.value_estimator.value_network.load_state_dict[state_dict['value_network']]
+            self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
+            self.value_estimator.value_network.load_state_dict(state_dict['value_network'])
 
     def save_model(self, file):
         torch.save(self.get_state_dict(), file)

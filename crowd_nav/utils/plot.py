@@ -38,7 +38,7 @@ def main():
             parser.error('Input argument should be the directory containing all experiment folders')
         # args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in os.listdir(log_dir)]
         args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in
-                          ['om-sarl2', '2_embedded_gaussian_ls']]
+                          ['sarl_linear_adam', 'mp_detach_skip', 'rgl_linear_adam']]
 
     args.log_files = sorted(args.log_files)
     if not models:
@@ -62,7 +62,7 @@ def main():
             val_time.append(float(r[3]))
             val_reward.append(float(r[4]))
 
-        train_pattern = r"TRAIN in episode (?P<episode>\d+) has success rate: (?P<sr>[0-1].\d+), " \
+        train_pattern = r"TRAIN in episode (?P<episode>\d+)  in epoch 0 has success rate: (?P<sr>[0-1].\d+), " \
                         r"collision rate: (?P<cr>[0-1].\d+), nav time: (?P<time>\d+.\d+), " \
                         r"total reward: (?P<reward>[-+]?\d+.\d+)"
         train_episode = []
@@ -163,8 +163,8 @@ def main():
         if args.plot_reward:
             # ax4.legend(ax4_legends, loc='center left', bbox_to_anchor=(1, 0.5))
             ax4.legend(ax4_legends)
-            # ax4.set_xlabel('Episodes')
-            # ax4.set_ylabel('Reward')
+            ax4.set_xlabel('Episodes')
+            ax4.set_ylabel('Reward')
             plt.tick_params(axis='both', which='major')
             plt.subplots_adjust(left=0.15, right=0.9, top=0.9, bottom=0.125)
             # ax4.set_xlabel('xlabel', fontsize=18)
