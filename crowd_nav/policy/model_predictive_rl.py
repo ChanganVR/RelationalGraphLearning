@@ -103,14 +103,14 @@ class ModelPredictiveRL(Policy):
                 return {
                     'graph_model': self.value_estimator.graph_model.state_dict(),
                     'value_network': self.value_estimator.value_network.state_dict(),
-                    'motion_predictor': self.state_predictor.linear_motion_approximator.state_dict()
+                    'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
                 }
             else:
                 return {
                     'graph_model1': self.value_estimator.graph_model.state_dict(),
                     'graph_model2': self.state_predictor.graph_model.state_dict(),
                     'value_network': self.value_estimator.value_network.state_dict(),
-                    'motion_predictor': self.state_predictor.linear_motion_approximator.state_dict()
+                    'motion_predictor': self.state_predictor.human_motion_predictor.state_dict()
                 }
         else:
             return {
@@ -130,7 +130,7 @@ class ModelPredictiveRL(Policy):
                 self.state_predictor.graph_model.load_state_dict(state_dict['graph_model2'])
 
             self.value_estimator.value_network.load_state_dict(state_dict['value_network'])
-            self.state_predictor.linear_motion_approximator.load_state_dict(state_dict['motion_predictor'])
+            self.state_predictor.human_motion_predictor.load_state_dict(state_dict['motion_predictor'])
         else:
             self.value_estimator.graph_model.load_state_dict(state_dict['graph_model'])
             self.value_estimator.value_network.load_state_dict(state_dict['value_network'])

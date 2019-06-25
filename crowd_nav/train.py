@@ -43,20 +43,20 @@ def main(args):
         os.makedirs(args.output_dir)
         shutil.copy(args.config, os.path.join(args.output_dir, 'config.py'))
 
-        # insert the arguments from command line to the config file
-        with open(os.path.join(args.output_dir, 'config.py'), 'r') as fo:
-            config_text = fo.read()
-        search_pairs = {r"gcn.X_dim = \d*": "gcn.X_dim = {}".format(args.X_dim),
-                        r"gcn.num_layer = \d": "gcn.num_layer = {}".format(args.layers),
-                        r"gcn.similarity_function = '\w*'": "gcn.similarity_function = '{}'".format(args.sim_func),
-                        r"gcn.layerwise_graph = \w*": "gcn.layerwise_graph = {}".format(args.layerwise_graph),
-                        r"gcn.skip_connection = \w*": "gcn.skip_connection = {}".format(args.skip_connection)}
-
-        for find, replace in search_pairs.items():
-            config_text = re.sub(find, replace, config_text)
-
-        with open(os.path.join(args.output_dir, 'config.py'), 'w') as fo:
-            fo.write(config_text)
+        # # insert the arguments from command line to the config file
+        # with open(os.path.join(args.output_dir, 'config.py'), 'r') as fo:
+        #     config_text = fo.read()
+        # search_pairs = {r"gcn.X_dim = \d*": "gcn.X_dim = {}".format(args.X_dim),
+        #                 r"gcn.num_layer = \d": "gcn.num_layer = {}".format(args.layers),
+        #                 r"gcn.similarity_function = '\w*'": "gcn.similarity_function = '{}'".format(args.sim_func),
+        #                 r"gcn.layerwise_graph = \w*": "gcn.layerwise_graph = {}".format(args.layerwise_graph),
+        #                 r"gcn.skip_connection = \w*": "gcn.skip_connection = {}".format(args.skip_connection)}
+        #
+        # for find, replace in search_pairs.items():
+        #     config_text = re.sub(find, replace, config_text)
+        #
+        # with open(os.path.join(args.output_dir, 'config.py'), 'w') as fo:
+        #     fo.write(config_text)
 
     if args.save_scene:
         save_scene_dir = os.path.join(args.output_dir, 'save_scene')
@@ -90,10 +90,10 @@ def main(args):
     writer = SummaryWriter(log_dir=args.output_dir)
 
     # configure policy
-    policy = policy_factory[args.policy]()
+    policy_config = config.PolicyConfig()
+    policy = policy_factory[policy_config.name]()
     if not policy.trainable:
         parser.error('Policy has to be trainable')
-    policy_config = config.PolicyConfig()
     policy.configure(policy_config)
     policy.set_device(device)
 
@@ -127,7 +127,7 @@ def main(args):
     model = policy.get_model()
     batch_size = train_config.trainer.batch_size
     optimizer = train_config.trainer.optimizer
-    if args.policy == 'model_predictive_rl':
+    if policy_config.name == 'model_predictive_rl':
         trainer = MPRLTrainer(model, policy.state_predictor, memory, device, writer, batch_size, optimizer, env.human_num,
                               reduce_sp_update_frequency=train_config.train.reduce_sp_update_frequency,
                               freeze_state_predictor=train_config.train.freeze_state_predictor,
@@ -295,11 +295,11 @@ if __name__ == '__main__':
     parser.add_argument('--save_stable_models', default=False, action='store_true')
 
     # arguments for GCN
-    parser.add_argument('--X_dim', type=int, default=32)
-    parser.add_argument('--layers', type=int, default=2)
-    parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
-    parser.add_argument('--layerwise_graph', default=False, action='store_true')
-    parser.add_argument('--skip_connection', default=True, action='store_true')
+    # parser.add_argument('--X_dim', type=int, default=32)
+    # parser.add_argument('--layers', type=int, default=2)
+    # parser.add_argument('--sim_func', type=str, default='embedded_gaussian')
+    # parser.add_argument('--layerwise_graph', default=False, action='store_true')
+    # parser.add_argument('--skip_connection', default=True, action='store_true')
 
     # arguments for training with scenarios with variable number of pedestrians in one episode
     parser.add_argument('--pretend_batch', default=False, action='store_true')

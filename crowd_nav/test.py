@@ -49,8 +49,8 @@ def main(args):
     spec.loader.exec_module(config)
 
     # configure policy
-    policy = policy_factory[args.policy]()
     policy_config = config.PolicyConfig(args.debug)
+    policy = policy_factory[policy_config.name]()
     if args.planning_depth is not None:
         policy_config.model_predictive_rl.planning_depth = args.planning_depth
     if args.planning_width is not None:
@@ -124,10 +124,10 @@ def main(args):
             env.render('traj', args.video_file)
         else:
             if args.video_dir is not None:
-                if args.policy == 'gcn':
-                    args.video_file = os.path.join(args.video_dir, args.policy + '_' + policy_config.gcn.similarity_function)
+                if policy_config.name == 'gcn':
+                    args.video_file = os.path.join(args.video_dir, policy_config.name + '_' + policy_config.gcn.similarity_function)
                 else:
-                    args.video_file = os.path.join(args.video_dir, args.policy)
+                    args.video_file = os.path.join(args.video_dir, policy_config.name)
                 args.video_file = args.video_file + '_' + args.phase + '_' + str(args.test_case) + '.mp4'
             if env.current_scenario.startswith('realsim'):
                 env.render('dynamic_video', args.video_file)

@@ -38,7 +38,8 @@ def main():
             parser.error('Input argument should be the directory containing all experiment folders')
         # args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in os.listdir(log_dir)]
         args.log_files = [os.path.join(log_dir, exp_dir, 'output.log') for exp_dir in
-                          ['sarl_linear_adam', 'mp_detach_skip', 'rgl_linear_adam']]
+                          ['sarl_linear_adam', 'mp_detach_skip', 'rgl_linear_adam', 'rgl_no_transformation',
+                           'mp_separate_graph']]
 
     args.log_files = sorted(args.log_files)
     if not models:
