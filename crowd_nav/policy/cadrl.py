@@ -79,15 +79,14 @@ class CADRL(Policy):
         self.cell_size = config.om.cell_size
         self.om_channel_size = config.om.om_channel_size
 
+        logging.info('Query environment: {}'.format(self.query_env))
+
     def set_device(self, device):
         self.device = device
         self.model.to(device)
 
     def set_epsilon(self, epsilon):
         self.epsilon = epsilon
-
-    def get_model(self):
-        return self.model
 
     def build_action_space(self, v_pref):
         """

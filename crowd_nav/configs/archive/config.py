@@ -1,3 +1,8 @@
+"""
+Never Modify this file! Always copy the settings you want to change to your local file.
+"""
+
+
 import numpy as np
 
 
@@ -26,8 +31,8 @@ class BaseEnvConfig(object):
     sim.train_val_scenario = 'square_crossing'
     sim.test_scenario = 'square_crossing'
     sim.square_width = 20
-    sim.circle_radius = 5
-    sim.human_num = 20
+    sim.circle_radius = 4
+    sim.human_num = 5
     sim.group_num = 0
     sim.group_size = 0
     sim.nonstop_human = False
@@ -160,3 +165,4 @@ class BaseTrainConfig(object):
             self.imitation_learning.il_epochs = 5
             self.train.train_episodes = 1
             self.train.checkpoint_interval = self.train.train_episodes
+            self.train.evaluation_interval = 1

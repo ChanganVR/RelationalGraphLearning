@@ -1,11 +1,12 @@
 import logging
+import abc
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
 
-class Trainer(object):
+class MPRLTrainer(object):
     def __init__(self, value_estimator, state_predictor, memory, device, writer, batch_size, optimizer_str, human_num,
                  reduce_sp_update_frequency, freeze_state_predictor, detach_state_predictor, share_graph_model):
         """
@@ -23,7 +24,7 @@ class Trainer(object):
         self.reduce_sp_update_frequency = reduce_sp_update_frequency
         self.state_predictor_update_interval = human_num
         self.freeze_state_predictor = freeze_state_predictor
-        self.detach_state_predictor= detach_state_predictor
+        self.detach_state_predictor = detach_state_predictor
         self.share_graph_model = share_graph_model
         self.v_optimizer = None
         self.s_optimizer = None
@@ -32,15 +33,22 @@ class Trainer(object):
     def set_learning_rate(self, learning_rate):
         if self.optimizer_str == 'Adam':
             self.v_optimizer = optim.Adam(self.value_estimator.parameters(), lr=learning_rate)
-            self.s_optimizer = optim.Adam(self.state_predictor.parameters(), lr=learning_rate)
+            if self.state_predictor.trainable:
+                self.s_optimizer = optim.Adam(self.state_predictor.parameters(), lr=learning_rate)
         elif self.optimizer_str == 'SGD':
             self.v_optimizer = optim.SGD(self.value_estimator.parameters(), lr=learning_rate, momentum=0.9)
-            self.s_optimizer = optim.SGD(self.state_predictor.parameters(), lr=learning_rate)
+            if self.state_predictor.trainable:
+                self.s_optimizer = optim.SGD(self.state_predictor.parameters(), lr=learning_rate)
         else:
             raise NotImplementedError
-        logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
-            [name for name, param in list(self.value_estimator.named_parameters()) +
-             list(self.state_predictor.named_parameters())]), self.optimizer_str))
+
+        if self.state_predictor.trainable:
+            logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
+                [name for name, param in list(self.value_estimator.named_parameters()) +
+                 list(self.state_predictor.named_parameters())]), self.optimizer_str))
+        else:
+            logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
+                [name for name, param in list(self.value_estimator.named_parameters())]), self.optimizer_str))
 
     def optimize_epoch_pretend_batch(self, num_epochs):
         self.batch_size = 1
@@ -107,18 +115,19 @@ class Trainer(object):
                 epoch_v_loss += loss.data.item()
 
                 # optimize state predictor
-                update_state_predictor = True
-                if self.reduce_sp_update_frequency and update_counter % self.state_predictor_update_interval != 0:
-                    update_state_predictor = False
-                    
-                if update_state_predictor:
-                    self.s_optimizer.zero_grad()
-                    _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
-                    loss = self.criterion(next_human_states_est, next_human_states)
-                    loss.backward()
-                    self.s_optimizer.step()
-                    epoch_s_loss += loss.data.item()
-                update_counter += 1
+                if self.state_predictor.trainable:
+                    update_state_predictor = True
+                    if update_counter % self.state_predictor_update_interval != 0:
+                        update_state_predictor = False
+
+                    if update_state_predictor:
+                        self.s_optimizer.zero_grad()
+                        _, next_human_states_est = self.state_predictor((robot_states, human_states), None)
+                        loss = self.criterion(next_human_states_est, next_human_states)
+                        loss.backward()
+                        self.s_optimizer.step()
+                        epoch_s_loss += loss.data.item()
+                    update_counter += 1
 
             logging.debug('{}-th epoch ends'.format(epoch))
             self.writer.add_scalar('IL/epoch_v_loss', epoch_v_loss / len(self.memory), epoch)
@@ -190,20 +199,21 @@ class Trainer(object):
             v_losses += loss.data.item()
 
             # optimize state predictor
-            update_state_predictor = True
-            if self.freeze_state_predictor:
-                update_state_predictor = False
-            elif self.reduce_sp_update_frequency and batch_count % self.state_predictor_update_interval == 0:
-                update_state_predictor = False
-            
-            if update_state_predictor:
-                self.s_optimizer.zero_grad()
-                _, next_human_states_est = self.state_predictor((robot_states, human_states), None,
-                                                                detach=self.detach_state_predictor)
-                loss = self.criterion(next_human_states_est, next_human_states)
-                loss.backward()
-                self.s_optimizer.step()
-                s_losses += loss.data.item()
+            if self.state_predictor.trainable:
+                update_state_predictor = True
+                if self.freeze_state_predictor:
+                    update_state_predictor = False
+                elif self.reduce_sp_update_frequency and batch_count % self.state_predictor_update_interval == 0:
+                    update_state_predictor = False
+
+                if update_state_predictor:
+                    self.s_optimizer.zero_grad()
+                    _, next_human_states_est = self.state_predictor((robot_states, human_states), None,
+                                                                    detach=self.detach_state_predictor)
+                    loss = self.criterion(next_human_states_est, next_human_states)
+                    loss.backward()
+                    self.s_optimizer.step()
+                    s_losses += loss.data.item()
 
             batch_count += 1
             if batch_count > num_batches:
@@ -218,11 +228,167 @@ class Trainer(object):
         return average_v_loss, average_s_loss
 
 
+class VNRLTrainer(object):
+    def __init__(self, model, memory, device, batch_size, optimizer_str, writer):
+        """
+        Train the trainable model of a policy
+        """
+        self.model = model
+        self.device = device
+        self.criterion = nn.MSELoss().to(device)
+        self.memory = memory
+        self.data_loader = None
+        self.batch_size = batch_size
+        self.optimizer_str = optimizer_str
+        self.optimizer = None
+        self.pretend_batch_size = 100
+        self.writer = writer
+
+    def set_learning_rate(self, learning_rate):
+        if self.optimizer_str == 'Adam':
+            self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        elif self.optimizer_str == 'SGD':
+            self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=0.9)
+        else:
+            raise NotImplementedError
+        logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
+            [name for name, param in self.model.named_parameters()]), self.optimizer_str))
+
+    def optimize_epoch_pretend_batch(self, num_epochs):
+        self.batch_size = 1
+
+        if self.optimizer is None:
+            raise ValueError('Learning rate is not set!')
+        if self.data_loader is None:
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+        logging.info('start to optimize epoch in pretend batch manner')
+        average_epoch_loss = 0
+        for epoch in range(num_epochs):
+            logging.debug('{}-th epoch starts'.format(epoch))
+            epoch_loss = 0
+            count_within_batch = 0
+
+            values_list = []
+            outputs_list = []
+            for data in self.data_loader:
+                if count_within_batch < self.pretend_batch_size:
+                    input, value = data
+                    self.optimizer.zero_grad()
+                    output = self.model(input)
+                    values_list.append(value)
+                    outputs_list.append(output)
+                    count_within_batch += 1
+                else:
+                    values = torch.cat(values_list, 0)
+                    outputs = torch.cat(outputs_list, 0)
+                    loss = self.criterion(outputs, values)
+                    loss.backward()
+                    self.optimizer.step()
+                    epoch_loss += loss.data.item()
+                    values_list = []
+                    outputs_list = []
+                    count_within_batch = 0
+            logging.debug('{}-th epoch ends'.format(epoch))
+            average_epoch_loss = epoch_loss / len(self.memory)
+            self.writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
+            logging.info('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
+        return average_epoch_loss
+
+    def optimize_epoch(self, num_epochs):
+        if self.optimizer is None:
+            raise ValueError('Learning rate is not set!')
+        if self.data_loader is None:
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+        average_epoch_loss = 0
+        for epoch in range(num_epochs):
+            epoch_loss = 0
+            logging.debug('{}-th epoch starts'.format(epoch))
+            for data in self.data_loader:
+                inputs, values = data
+                self.optimizer.zero_grad()
+                outputs = self.model(inputs)
+                values = values.to(self.device)
+                loss = self.criterion(outputs, values)
+                loss.backward()
+                self.optimizer.step()
+                epoch_loss += loss.data.item()
+            logging.debug('{}-th epoch ends'.format(epoch))
+            average_epoch_loss = epoch_loss / len(self.memory)
+            self.writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
+            logging.info('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
+
+        return average_epoch_loss
+
+    def optimize_pretend_batch(self, num_batches):
+        self.pretend_batch_size = 100
+        self.batch_size = 1
+
+        if self.optimizer is None:
+            raise ValueError('Learning rate is not set!')
+        if self.data_loader is None:
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+        logging.info('start to optimize:{} batches in pretend batch manner'.format(self.batch_size))
+        losses = 0
+        batch_count = 0
+        count_within_batch = 0
+
+        values_list = []
+        outputs_list = []
+        for data in self.data_loader:
+            if count_within_batch < self.pretend_batch_size:
+                input, value = data
+                self.optimizer.zero_grad()
+                output = self.model(input)
+                values_list.append(value)
+                outputs_list.append(output)
+                count_within_batch += 1
+            else:
+                values = torch.cat(values_list, 0)
+                outputs = torch.cat(outputs_list, 0)
+                loss = self.criterion(outputs, values)
+                loss.backward()
+                self.optimizer.step()
+                losses += loss.data.item()
+                values_list = []
+                outputs_list = []
+                count_within_batch = 0
+                batch_count += 1
+            if batch_count > num_batches:
+                break
+        logging.info('end to optimize:{} batches in pretend batch manner'.format(self.batch_size))
+        average_loss = losses / num_batches
+        logging.info('Average loss : %.2E', average_loss)
+        return average_loss
+
+    def optimize_batch(self, num_batches, episode=None):
+        if self.optimizer is None:
+            raise ValueError('Learning rate is not set!')
+        if self.data_loader is None:
+            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
+        losses = 0
+        batch_count = 0
+        for data in self.data_loader:
+            inputs, values = data
+            self.optimizer.zero_grad()
+            outputs = self.model(inputs)
+            loss = self.criterion(outputs, values)
+            loss.backward()
+            self.optimizer.step()
+            losses += loss.data.item()
+            batch_count += 1
+            if batch_count > num_batches:
+                break
+
+        average_loss = losses / num_batches
+        logging.info('Average loss : %.2E', average_loss)
+
+        return average_loss
+
+
 def pad_batch(batch):
     """
     args:
         batch - list of (tensor, label)
-
     return:
         xs - a tensor of all examples in 'batch' after padding
         ys - a LongTensor of all labels in batch
@@ -234,11 +400,3 @@ def pad_batch(batch):
     ys = torch.Tensor([y for x, y in batch]).unsqueeze(1)
 
     return xs, ys
-
-
-def pack_batch(batch):
-    robot_states = torch.Tensor([x[0][0] for x, y in batch])
-    human_states = torch.Tensor([x[1] for x, y in batch])
-    values = torch.Tensor([y for y in batch])
-
-    return (robot_states, human_states), values

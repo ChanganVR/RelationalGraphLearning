@@ -23,12 +23,12 @@ class MultiHumanRL(CADRL):
         if self.reach_destination(state):
             return ActionXY(0, 0) if self.kinematics == 'holonomic' else ActionRot(0, 0)
         if self.action_space is None:
-            self.build_action_space(state.self_state.v_pref)
+            self.build_action_space(state.robot_state.v_pref)
         if not state.human_states:
             assert self.phase != 'train'
             if hasattr(self, 'attention_weights'):
                 self.attention_weights = list()
-            return self.select_greedy_action(state.self_state)
+            return self.select_greedy_action(state.robot_state)
 
         occupancy_maps = None
         probability = np.random.random()
@@ -39,14 +39,14 @@ class MultiHumanRL(CADRL):
             max_value = float('-inf')
             max_action = None
             for action in self.action_space:
-                next_self_state = self.propagate(state.self_state, action)
+                next_robot_state = self.propagate(state.robot_state, action)
                 if self.query_env:
                     next_human_states, reward, done, info = self.env.onestep_lookahead(action)
                 else:
                     next_human_states = [self.propagate(human_state, ActionXY(human_state.vx, human_state.vy))
                                          for human_state in state.human_states]
-                    reward = self.compute_reward(next_self_state, next_human_states)
-                batch_next_states = torch.cat([torch.Tensor([next_self_state + next_human_state]).to(self.device)
+                    reward = self.compute_reward(next_robot_state, next_human_states)
+                batch_next_states = torch.cat([torch.Tensor([next_robot_state + next_human_state]).to(self.device)
                                               for next_human_state in next_human_states], dim=0)
                 rotated_batch_input = self.rotate(batch_next_states).unsqueeze(0)
                 if self.with_om:
@@ -55,7 +55,7 @@ class MultiHumanRL(CADRL):
                     rotated_batch_input = torch.cat([rotated_batch_input, occupancy_maps], dim=2)
                 # VALUE UPDATE
                 next_state_value = self.model(rotated_batch_input).data.item()
-                value = reward + pow(self.gamma, self.time_step * state.self_state.v_pref) * next_state_value
+                value = reward + pow(self.gamma, self.time_step * state.robot_state.v_pref) * next_state_value
                 self.action_values.append(value)
                 if value > max_value:
                     max_value = value
@@ -102,7 +102,7 @@ class MultiHumanRL(CADRL):
         :param state:
         :return: tensor of shape (# of humans, len(state))
         """
-        state_tensor = torch.cat([torch.Tensor([state.self_state + human_state]).to(self.device)
+        state_tensor = torch.cat([torch.Tensor([state.robot_state + human_state]).to(self.device)
                                   for human_state in state.human_states], dim=0)
         rotated_state_tensor = self.rotate(state_tensor)
         if self.with_om:

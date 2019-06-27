@@ -32,7 +32,8 @@ def main(args):
             if os.path.exists(os.path.join(args.model_dir, 'resumed_rl_model.pth')):
                 model_weights = os.path.join(args.model_dir, 'resumed_rl_model.pth')
             else:
-                model_weights = os.path.join(args.model_dir, 'rl_model.pth')
+                print(os.listdir(args.model_dir))
+                model_weights = os.path.join(args.model_dir, sorted(os.listdir(args.model_dir))[-1])
             logging.info('Loaded RL weights')
         else:
             model_weights = os.path.join(args.model_dir, 'best_val.pth')
@@ -48,8 +49,8 @@ def main(args):
     spec.loader.exec_module(config)
 
     # configure policy
-    policy = policy_factory[args.policy]()
     policy_config = config.PolicyConfig(args.debug)
+    policy = policy_factory[policy_config.name]()
     if args.planning_depth is not None:
         policy_config.model_predictive_rl.planning_depth = args.planning_depth
     if args.planning_width is not None:
@@ -83,7 +84,7 @@ def main(args):
     env.set_robot(robot)
     robot.time_step = env.time_step
     robot.set_policy(policy)
-    explorer = Explorer(env, robot, device, gamma=0.9)
+    explorer = Explorer(env, robot, device, None, gamma=0.9)
 
     train_config = config.TrainConfig(args.debug)
     epsilon_end = train_config.train.epsilon_end
@@ -123,8 +124,8 @@ def main(args):
             env.render('traj', args.video_file)
         else:
             if args.video_dir is not None:
-                if args.policy == 'gcn':
-                    args.video_file = os.path.join(args.video_dir, args.policy + '_' + policy_config.gcn.similarity_function)
+                if policy_config.name == 'gcn':
+                    args.video_file = os.path.join(args.video_dir, policy_config.name + '_' + policy_config.gcn.similarity_function)
                 else:
                     args.video_file = os.path.join(args.video_dir, args.policy + '_depth_' + str(args.planning_depth) + '_width_' + str(args.planning_width))
                 args.video_file = args.video_file + '_' + args.phase + '_' + str(args.test_case) + '.mp4'

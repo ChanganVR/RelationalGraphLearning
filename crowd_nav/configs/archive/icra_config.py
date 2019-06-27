@@ -10,6 +10,7 @@ class EnvConfig(BaseEnvConfig):
         self.sim.circle_radius = 4
         self.sim.human_num = 5
 
+
 class PolicyConfig(BasePolicyConfig):
     def __init__(self, debug=False):
         super(PolicyConfig, self).__init__(debug)
