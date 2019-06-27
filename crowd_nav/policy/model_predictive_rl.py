@@ -207,6 +207,8 @@ class ModelPredictiveRL(Policy):
                 max_next_return, max_next_traj = self.V_planning(next_state, self.planning_depth, self.planning_width, self.vtree.children[action])
                 reward_est = self.estimate_reward(state, action)
                 value = reward_est + self.get_normalized_gamma() * max_next_return
+                self.vtree.q_value_d_n[action] = value.tolist()[0][0]
+
                 if self.do_action_clip:
                     action_index = self.action_space.index(action)
                     self.clipped_action_values.append(value.tolist()[0][0])
@@ -217,6 +219,14 @@ class ModelPredictiveRL(Policy):
                     max_value = value
                     max_action = action
                     max_traj = [(state_tensor, action, reward_est)] + max_next_traj
+
+            '''
+            only for tree visualization
+            '''
+            for action in self.action_space:
+                if action not in self.vtree.q_value_d_n:
+                    self.vtree.q_value_d_n[action] = self.vtree.one_step_trajs_est[action][0] + self.get_normalized_gamma() * self.vtree.one_step_trajs_est[action][2]
+
             if max_action is None:
                 raise ValueError('Value network is not well trained.')
 

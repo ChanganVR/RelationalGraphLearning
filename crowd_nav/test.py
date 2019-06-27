@@ -109,7 +109,25 @@ def main(args):
         done = False
         last_pos = np.array(robot.get_position())
         while not done:
+            '''
+            if len(rewards) < 36 or len(rewards) > 40:
+                robot.policy.planning_depth = 1
+                robot.policy.planning_width = 1
+                print('at time step check the v_planning: ', len(rewards))
+                print('current depth is: ', robot.policy.planning_depth)
+                print('current width is:', robot.policy.planning_width)
+            else:
+                robot.policy.planning_depth = args.planning_depth
+                robot.policy.planning_width = args.planning_width
+                print('at time step check the v_planning: ', len(rewards))
+                print('current depth is: ', robot.policy.planning_depth)
+                print('current width is:', robot.policy.planning_width)
+            '''
             action = robot.act(ob)
+            '''
+            if len(rewards) == 22:
+                action = robot.policy.action_space[17]
+            '''
             ob, _, done, info = env.step(action)
             rewards.append(_)
             current_pos = np.array(robot.get_position())
