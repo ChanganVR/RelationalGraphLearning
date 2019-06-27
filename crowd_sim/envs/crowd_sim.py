@@ -419,14 +419,15 @@ class CrowdSim(gym.Env):
             # case_counter is always between 0 and case_size[phase]
             self.case_counter[phase] = (self.case_counter[phase] + 1) % self.case_size[phase]
         else:
+            self.current_scenario = 'self-designed'
             assert phase == 'test'
             if self.case_counter[phase] == -1:
                 # for debugging purposes
-                self.human_num = 3
+                self.human_num = 1
                 self.humans = [Human(self.config, 'humans') for _ in range(self.human_num)]
-                self.humans[0].set(0, -6, 0, 5, 0, 0, np.pi / 2)
-                self.humans[1].set(-5, -5, -5, 5, 0, 0, np.pi / 2)
-                self.humans[2].set(5, -5, 5, 5, 0, 0, np.pi / 2)
+                self.humans[0].set(-0.5, 0.5, -0.5, 4.5, 0, 0, np.pi / 2)
+                #self.humans[1].set(-5, -5, -5, 5, 0, 0, np.pi / 2)
+                #self.humans[2].set(5, -5, 5, 5, 0, 0, np.pi / 2)
             else:
                 raise NotImplementedError
         #sha:
@@ -1107,14 +1108,16 @@ class CrowdSim(gym.Env):
             human_future_positions = []
             human_future_circles = []
             for traj in self.trajs:
+                current_plan_depth = len(traj)-1
                 human_future_position = [[tensor_to_joint_state(traj[step+1][0]).human_states[i].position
-                                          for step in range(self.robot.policy.planning_depth)]
+                                          for step in range(current_plan_depth)]
                                          for i in range(self.human_num)]
                 human_future_positions.append(human_future_position)
 
             for i in range(self.human_num):
                 circles = []
-                for j in range(self.robot.policy.planning_depth):
+                #for j in range(self.robot.policy.planning_depth):
+                for j in range(len(human_future_positions[0][i])):
                     circle = plt.Circle(human_future_positions[0][i][j], self.humans[0].radius/(1.7+j), fill=False, color=cmap(i))
                     ax.add_artist(circle)
                     circles.append(circle)
@@ -1151,7 +1154,8 @@ class CrowdSim(gym.Env):
 
                 for i, circles in enumerate(human_future_circles):
                     for j, circle in enumerate(circles):
-                        circle.center = human_future_positions[global_step][i][j]
+                        if j <= len(human_future_positions[global_step][i])-1:
+                            circle.center = human_future_positions[global_step][i][j]
 
             def plot_value_heatmap(if_clipped):
                 if self.robot.kinematics != 'holonomic':

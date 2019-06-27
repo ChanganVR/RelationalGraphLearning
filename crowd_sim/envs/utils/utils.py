@@ -35,6 +35,7 @@ class VTree(object):
         self.current_level = current_level
         self.one_step_trajs_est = dict()
         self.children = dict()
+        self.q_value_d_n = dict()
 
     def add_child(self, action, state_est, width):
         self.children[action] = VTree(state_est, self.current_level + 1, width)
@@ -73,12 +74,17 @@ def print_vtree(vtree, action_space, robot, global_step, action_taken_index):
             width_index += 1
             values_to_plot = []
             Q_to_plot = []
+            rewards_to_plot = []
+            Q_d_to_plot = []
             for a, traj in v.one_step_trajs_est.items():
                 a_index = action_space.index(a)
                 r_level_a = traj[0]
                 next_state_value_d_1 = traj[2]
                 values_to_plot.append(next_state_value_d_1)
                 Q_to_plot.append(next_state_value_d_1 * robot.policy.get_normalized_gamma() + r_level_a)
+                rewards_to_plot.append(r_level_a)
+                if v.current_level < 1:
+                    Q_d_to_plot.append(v.q_value_d_n[a])
                 print('(a_' + str(a_index) + ', r: ' + str(round(r_level_a, precision)) + ', v(s_t+1): ' + str(round(next_state_value_d_1, precision)) + ') ', end="")
             if v.one_step_trajs_est != dict() and v.current_level < 1:
                 plot_value_heatmap_title = 'global_step: '+ str(global_step) + ' level_' + str(level) + 'width_' + str(width_index) + '_next_state_value' + '_a_taken_' + str(action_taken_index) +\
@@ -86,8 +92,16 @@ def print_vtree(vtree, action_space, robot, global_step, action_taken_index):
                 plot_vtree_heatmap(plot_value_heatmap_title, robot, values_to_plot, plt)
 
                 plot_value_heatmap_title = 'global_step: '+ str(global_step) + ' level_' + str(level) + 'width_' + str(width_index) + '_Q' + '_a_taken_' + str(action_taken_index) +\
-                    str(' ') + str(np.array(Q_to_plot).argsort()[::-1][:5].tolist())
+                    str(' ') + str(np.array(Q_to_plot).argsort()[::-1][:20].tolist())
                 plot_vtree_heatmap(plot_value_heatmap_title, robot, Q_to_plot, plt)
+
+                plot_value_heatmap_title = 'global_step: '+ str(global_step) + ' level_' + str(level) + 'width_' + str(width_index) + '_r' + '_a_taken_' + str(action_taken_index) +\
+                    str(' ') + str(np.array(rewards_to_plot).argsort()[::-1][:5].tolist())
+                plot_vtree_heatmap(plot_value_heatmap_title, robot, rewards_to_plot, plt)
+
+                plot_value_heatmap_title = 'global_step: '+ str(global_step) + ' level_' + str(level) + 'width_' + str(width_index) + '_Q-d' + '_a_taken_' + str(action_taken_index) +\
+                    str(' ') + str(np.array(Q_d_to_plot).argsort()[::-1][:5].tolist())
+                plot_vtree_heatmap(plot_value_heatmap_title, robot, Q_d_to_plot, plt)
 
             if v.one_step_trajs_est != dict():
                 print(' ')
@@ -115,8 +129,12 @@ def plot_vtree_heatmap(title, robot, values, plt):
     r, th = np.meshgrid(speeds, rotations)
 
     z = np.array(values[1:])
-    z = (z - np.min(z)) / (np.max(z) - np.min(z))
+
+    if np.max(z) != np.min(z):
+        z = (z - np.min(z)) / (np.max(z) - np.min(z))
+
     z = np.reshape(z, (robot.policy.rotation_samples, robot.policy.speed_samples))
+
     polar = plt.subplot(projection="polar")
     polar.tick_params(labelsize=16)
     polar.set_title(title)
