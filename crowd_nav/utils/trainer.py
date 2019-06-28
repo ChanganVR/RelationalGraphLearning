@@ -114,7 +114,7 @@ class MPRLTrainer(object):
 
             update_counter = 0
             for data in self.data_loader:
-                robot_states, human_states, values, _, _, _ = data
+                robot_states, human_states, values, _, _, next_human_states = data
 
                 # optimize value estimator
                 self.v_optimizer.zero_grad()
