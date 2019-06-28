@@ -28,8 +28,8 @@ class BaseEnvConfig(object):
     reward.discomfort_penalty_factor = 0.5
 
     sim = Config()
-    sim.train_val_scenario = 'square_crossing'
-    sim.test_scenario = 'square_crossing'
+    sim.train_val_scenario = 'circle_crossing'
+    sim.test_scenario = 'circle_crossing'
     sim.square_width = 20
     sim.circle_radius = 4
     sim.human_num = 5

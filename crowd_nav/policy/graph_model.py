@@ -48,10 +48,14 @@ class RGL(nn.Module):
 
         # TODO: try other dim size
         embedding_dim = self.X_dim
-        self.Ws = [Parameter(torch.randn(self.X_dim, embedding_dim))]
-        for i in range(self.num_layer - 2):
-            self.Ws.append(Parameter(torch.randn(embedding_dim, embedding_dim)))
-        self.Ws.append(Parameter(torch.randn(embedding_dim, final_state_dim)))
+        self.Ws = torch.nn.ParameterList()
+        for i in range(self.num_layer):
+            if i == 0:
+                self.Ws.append(Parameter(torch.randn(self.X_dim, embedding_dim)))
+            elif i == self.num_layer - 1:
+                self.Ws.append(Parameter(torch.randn(embedding_dim, final_state_dim)))
+            else:
+                self.Ws.append(Parameter(torch.randn(embedding_dim, embedding_dim)))
 
         # for visualization
         self.A = None
