@@ -15,11 +15,7 @@ class Explorer(object):
         self.memory = memory
         self.gamma = gamma
         self.target_policy = target_policy
-        self.target_model = None
         self.statistics = None
-
-    def update_target_model(self, target_model):
-        self.target_model = copy.deepcopy(target_model)
 
     # @profile
     def run_k_episodes(self, k, phase, update_memory=False, imitation_learning=False, episode=None, epoch=None,
@@ -137,24 +133,18 @@ class Explorer(object):
                              (1 if t >= i else 0) for t, reward in enumerate(rewards)])
             else:
                 next_state = states[i+1]
-                if self.target_policy.name == 'ModelPredictiveRL':
-                    next_robot_state = states[i + 1][0].unsqueeze(0)
-                    next_human_states = states[i + 1][1].unsqueeze(0)
-                    next_state_tensor = (next_robot_state, next_human_states)
-                else:
-                    next_state_tensor = next_state.unsqueeze(0)
                 if i == len(states) - 1:
                     # terminal state
                     value = reward
                 else:
-                    gamma_bar = pow(self.gamma, self.robot.time_step * self.robot.v_pref)
-                    value = reward + gamma_bar * self.target_model(next_state_tensor).data.item()
+                    value = 0
             value = torch.Tensor([value]).to(self.device)
+            reward = torch.Tensor([rewards[i]]).to(self.device)
 
             if self.target_policy.name == 'ModelPredictiveRL':
-                self.memory.push((state[0], state[1], value, next_state[1]))
+                self.memory.push((state[0], state[1], value, reward, next_state[0], next_state[1]))
             else:
-                self.memory.push((state, value))
+                self.memory.push((state, value, reward, next_state))
 
     def log(self, tag_prefix, global_step):
         sr, cr, time, reward, avg_return = self.statistics

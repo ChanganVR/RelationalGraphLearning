@@ -1,5 +1,6 @@
 import logging
 import abc
+import copy
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -7,7 +8,7 @@ from torch.utils.data import DataLoader
 
 
 class MPRLTrainer(object):
-    def __init__(self, value_estimator, state_predictor, memory, device, writer, batch_size, optimizer_str, human_num,
+    def __init__(self, value_estimator, state_predictor, memory, device, policy, writer, batch_size, optimizer_str, human_num,
                  reduce_sp_update_frequency, freeze_state_predictor, detach_state_predictor, share_graph_model):
         """
         Train the trainable model of a policy
@@ -16,6 +17,8 @@ class MPRLTrainer(object):
         self.state_predictor = state_predictor
         self.device = device
         self.writer = writer
+        self.target_policy = policy
+        self.target_model = None
         self.criterion = nn.MSELoss().to(device)
         self.memory = memory
         self.data_loader = None
@@ -29,6 +32,14 @@ class MPRLTrainer(object):
         self.v_optimizer = None
         self.s_optimizer = None
         self.pretend_batch_size = 100
+
+        # for value update
+        self.gamma = 0.9
+        self.time_step = 0.25
+        self.v_pref = 1
+
+    def update_target_model(self, target_model):
+        self.target_model = copy.deepcopy(target_model)
 
     def set_learning_rate(self, learning_rate):
         if self.optimizer_str == 'Adam':
@@ -103,7 +114,7 @@ class MPRLTrainer(object):
 
             update_counter = 0
             for data in self.data_loader:
-                robot_states, human_states, values, next_human_states = data
+                robot_states, human_states, values, _, _, _ = data
 
                 # optimize value estimator
                 self.v_optimizer.zero_grad()
@@ -187,13 +198,17 @@ class MPRLTrainer(object):
         s_losses = 0
         batch_count = 0
         for data in self.data_loader:
-            robot_states, human_states, values, next_human_states = data
+            robot_states, human_states, _, rewards, next_robot_states, next_human_states = data
 
             # optimize value estimator
             self.v_optimizer.zero_grad()
             outputs = self.value_estimator((robot_states, human_states))
-            values = values.to(self.device)
-            loss = self.criterion(outputs, values)
+
+            gamma_bar = pow(self.gamma, self.time_step * self.v_pref)
+            target_values = rewards + gamma_bar * self.target_model((next_robot_states, next_human_states))
+
+            # values = values.to(self.device)
+            loss = self.criterion(outputs, target_values)
             loss.backward()
             self.v_optimizer.step()
             v_losses += loss.data.item()
@@ -229,12 +244,14 @@ class MPRLTrainer(object):
 
 
 class VNRLTrainer(object):
-    def __init__(self, model, memory, device, batch_size, optimizer_str, writer):
+    def __init__(self, model, memory, device, policy, batch_size, optimizer_str, writer):
         """
         Train the trainable model of a policy
         """
         self.model = model
         self.device = device
+        self.policy = policy
+        self.target_model = None
         self.criterion = nn.MSELoss().to(device)
         self.memory = memory
         self.data_loader = None
@@ -243,6 +260,14 @@ class VNRLTrainer(object):
         self.optimizer = None
         self.pretend_batch_size = 100
         self.writer = writer
+
+        # for value update
+        self.gamma = 0.9
+        self.time_step = 0.25
+        self.v_pref = 1
+
+    def update_target_model(self, target_model):
+        self.target_model = copy.deepcopy(target_model)
 
     def set_learning_rate(self, learning_rate):
         if self.optimizer_str == 'Adam':
@@ -304,7 +329,7 @@ class VNRLTrainer(object):
             epoch_loss = 0
             logging.debug('{}-th epoch starts'.format(epoch))
             for data in self.data_loader:
-                inputs, values = data
+                inputs, values, _, _ = data
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
                 values = values.to(self.device)
@@ -368,10 +393,14 @@ class VNRLTrainer(object):
         losses = 0
         batch_count = 0
         for data in self.data_loader:
-            inputs, values = data
+            inputs, _, rewards, next_states = data
             self.optimizer.zero_grad()
             outputs = self.model(inputs)
-            loss = self.criterion(outputs, values)
+
+            gamma_bar = pow(self.gamma, self.time_step * self.v_pref)
+            target_values = rewards + gamma_bar * self.target_model(next_states)
+
+            loss = self.criterion(outputs, target_values)
             loss.backward()
             self.optimizer.step()
             losses += loss.data.item()
@@ -393,10 +422,15 @@ def pad_batch(batch):
         xs - a tensor of all examples in 'batch' after padding
         ys - a LongTensor of all labels in batch
     """
-    # sort the sequences in the decreasing order of length
-    sequences = sorted([x for x, y in batch], reverse=True, key=lambda x: x.size()[0])
-    packed_sequences = torch.nn.utils.rnn.pack_sequence(sequences)
-    xs = torch.nn.utils.rnn.pad_packed_sequence(packed_sequences, batch_first=True)
-    ys = torch.Tensor([y for x, y in batch]).unsqueeze(1)
+    def sort_states(position):
+        # sort the sequences in the decreasing order of length
+        sequences = sorted([x[position] for x in batch], reverse=True, key=lambda t: t.size()[0])
+        packed_sequences = torch.nn.utils.rnn.pack_sequence(sequences)
+        return torch.nn.utils.rnn.pad_packed_sequence(packed_sequences, batch_first=True)
 
-    return xs, ys
+    states = sort_states(0)
+    values = torch.Tensor([x[1] for x in batch]).unsqueeze(1)
+    rewards = torch.Tensor([x[2] for x in batch]).unsqueeze(1)
+    next_states = sort_states(3)
+
+    return states, values, rewards, next_states

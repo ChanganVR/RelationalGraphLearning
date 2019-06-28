@@ -166,3 +166,4 @@ class BaseTrainConfig(object):
             self.train.train_episodes = 1
             self.train.checkpoint_interval = self.train.train_episodes
             self.train.evaluation_interval = 1
+            self.train.target_update_interval = 1
