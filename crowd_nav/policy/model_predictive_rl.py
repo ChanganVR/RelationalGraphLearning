@@ -250,8 +250,7 @@ class ModelPredictiveRL(Policy):
             next_state_est = self.state_predictor(state, action)
             reward_est = self.estimate_reward(state, action)
             next_value, next_traj = self.V_planning(next_state_est, depth - 1, self.planning_width)
-            # TODO: verify this equation
-            return_value = current_state_value / depth + (depth - 1) / depth * (reward_est + next_value)
+            return_value = current_state_value / depth + (depth - 1) / depth * (self.get_normalized_gamma() * next_value + reward_est)
 
             returns.append(return_value)
             trajs.append([(state, action, reward_est)] + next_traj)
