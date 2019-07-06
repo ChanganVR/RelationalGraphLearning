@@ -39,12 +39,18 @@ class ModelPredictiveRL(Policy):
         self.planning_depth = None
         self.planning_width = None
         self.do_action_clip = None
+        self.sparse_search = None
+        self.sparse_speed_samples = 2
+        self.sparse_rotation_samples = 8
+        self.action_group_index = []
         self.traj = None
 
     def configure(self, config):
         self.set_common_parameters(config)
         self.planning_depth = config.model_predictive_rl.planning_depth
         self.do_action_clip = config.model_predictive_rl.do_action_clip
+        if hasattr(config.model_predictive_rl, 'sparse_search'):
+            self.sparse_search = config.model_predictive_rl.sparse_search
         self.planning_width = config.model_predictive_rl.planning_width
         self.share_graph_model = config.model_predictive_rl.share_graph_model
         self.linear_state_predictor = config.model_predictive_rl.linear_state_predictor
@@ -70,6 +76,9 @@ class ModelPredictiveRL(Policy):
 
         logging.info('Planning depth: {}'.format(self.planning_depth))
         logging.info('Planning width: {}'.format(self.planning_width))
+
+        if self.planning_depth > 1 and not self.do_action_clip:
+            logging.warning('Performing d-step planning without action space clipping!')
 
     def set_common_parameters(self, config):
         self.gamma = config.rl.gamma
@@ -153,12 +162,25 @@ class ModelPredictiveRL(Policy):
         else:
             rotations = np.linspace(-self.rotation_constraint, self.rotation_constraint, self.rotation_samples)
 
-        action_space = [ActionXY(0, 0) if holonomic else ActionRot(0, 0)]
-        for rotation, speed in itertools.product(rotations, speeds):
-            if holonomic:
-                action_space.append(ActionXY(speed * np.cos(rotation), speed * np.sin(rotation)))
+        action_space = []
+        for j, speed in enumerate(speeds):
+            # only two groups in speeds
+            if j < 3:
+                speed_index = 0
             else:
-                action_space.append(ActionRot(speed, rotation))
+                speed_index = 1
+
+            for i, rotation in enumerate(rotations):
+                rotation_index = i // 2
+
+                action_index = speed_index * self.sparse_rotation_samples + rotation_index
+                self.action_group_index.append(action_index)
+
+                if holonomic:
+                    action_space.append(ActionXY(speed * np.cos(rotation), speed * np.sin(rotation)))
+                else:
+                    action_space.append(ActionRot(speed, rotation))
+        action_space.append(ActionXY(0, 0) if holonomic else ActionRot(0, 0))
 
         self.speeds = speeds
         self.rotations = rotations
@@ -224,8 +246,23 @@ class ModelPredictiveRL(Policy):
             value = reward_est + self.get_normalized_gamma() * next_return
             values.append(value)
 
-        max_indexes = np.argpartition(np.array(values), -width)[-width:]
-        clipped_action_space = [action_space[i] for i in max_indexes]
+        if self.sparse_search:
+            # self.sparse_speed_samples = 2
+            # search in a sparse grained action space
+            added_groups = set()
+            max_indices = np.argsort(np.array(values))[::-1]
+            clipped_action_space = []
+            for index in max_indices:
+                if self.action_group_index[index] not in added_groups:
+                    clipped_action_space.append(action_space[index])
+                    added_groups.add(self.action_group_index[index])
+                    if len(clipped_action_space) == width:
+                        break
+        else:
+            max_indexes = np.argpartition(np.array(values), -width)[-width:]
+            clipped_action_space = [action_space[i] for i in max_indexes]
+
+        # print(clipped_action_space)
         return clipped_action_space
 
     def V_planning(self, state, depth, width):
