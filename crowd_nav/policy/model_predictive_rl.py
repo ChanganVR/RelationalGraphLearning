@@ -76,6 +76,7 @@ class ModelPredictiveRL(Policy):
 
         logging.info('Planning depth: {}'.format(self.planning_depth))
         logging.info('Planning width: {}'.format(self.planning_width))
+        logging.info('Sparse search: {}'.format(self.sparse_search))
 
         if self.planning_depth > 1 and not self.do_action_clip:
             logging.warning('Performing d-step planning without action space clipping!')

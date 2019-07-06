@@ -52,9 +52,14 @@ def main(args):
     policy_config = config.PolicyConfig(args.debug)
     policy = policy_factory[policy_config.name]()
     if args.planning_depth is not None:
+        policy_config.model_predictive_rl.do_aciton_clip = True
         policy_config.model_predictive_rl.planning_depth = args.planning_depth
     if args.planning_width is not None:
+        policy_config.model_predictive_rl.do_aciton_clip = True
         policy_config.model_predictive_rl.planning_width = args.planning_width
+    if args.sparse_search:
+        policy_config.model_predictive_rl.sparse_search = True
+
     policy.configure(policy_config)
     if policy.trainable:
         if args.model_dir is None:
@@ -151,13 +156,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('Parse configuration file')
     parser.add_argument('--config', type=str, default=None)
     parser.add_argument('--policy', type=str, default='model_predictive_rl')
-    parser.add_argument('--model_dir', type=str, default=None)
+    parser.add_argument('-m', '--model_dir', type=str, default=None)
     parser.add_argument('--il', default=False, action='store_true')
     parser.add_argument('--rl', default=False, action='store_true')
     parser.add_argument('--gpu', default=False, action='store_true')
-    parser.add_argument('--visualize', default=False, action='store_true')
+    parser.add_argument('-v', '--visualize', default=False, action='store_true')
     parser.add_argument('--phase', type=str, default='test')
-    parser.add_argument('--test_case', type=int, default=None)
+    parser.add_argument('-c', '--test_case', type=int, default=None)
     parser.add_argument('--square', default=False, action='store_true')
     parser.add_argument('--circle', default=False, action='store_true')
     parser.add_argument('--video_file', type=str, default=None)
@@ -171,8 +176,9 @@ if __name__ == '__main__':
     #parser.add_argument('--test_scenario', type=str, default='realsim_GrandCentral')
     parser.add_argument('--test_scenario', type=str, default=None)
     parser.add_argument('--plot_test_scenarios_hist', default=True, action='store_true')
-    parser.add_argument('--planning_depth', type=int, default=None)
-    parser.add_argument('--planning_width', type=int, default=None)
+    parser.add_argument('-d', '--planning_depth', type=int, default=None)
+    parser.add_argument('-w', '--planning_width', type=int, default=None)
+    parser.add_argument('--sparse_search', default=False, action='store_true')
 
     sys_args = parser.parse_args()
 
