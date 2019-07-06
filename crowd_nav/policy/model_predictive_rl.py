@@ -162,8 +162,11 @@ class ModelPredictiveRL(Policy):
         else:
             rotations = np.linspace(-self.rotation_constraint, self.rotation_constraint, self.rotation_samples)
 
-        action_space = []
+        action_space = [ActionXY(0, 0) if holonomic else ActionRot(0, 0)]
         for j, speed in enumerate(speeds):
+            if j == 0:
+                # index for action (0, 0)
+                self.action_group_index.append(0)
             # only two groups in speeds
             if j < 3:
                 speed_index = 0
@@ -180,7 +183,6 @@ class ModelPredictiveRL(Policy):
                     action_space.append(ActionXY(speed * np.cos(rotation), speed * np.sin(rotation)))
                 else:
                     action_space.append(ActionRot(speed, rotation))
-        action_space.append(ActionXY(0, 0) if holonomic else ActionRot(0, 0))
 
         self.speeds = speeds
         self.rotations = rotations
