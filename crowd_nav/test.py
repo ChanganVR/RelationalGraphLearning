@@ -52,10 +52,10 @@ def main(args):
     policy_config = config.PolicyConfig(args.debug)
     policy = policy_factory[policy_config.name]()
     if args.planning_depth is not None:
-        policy_config.model_predictive_rl.do_aciton_clip = True
+        policy_config.model_predictive_rl.do_action_clip = True
         policy_config.model_predictive_rl.planning_depth = args.planning_depth
     if args.planning_width is not None:
-        policy_config.model_predictive_rl.do_aciton_clip = True
+        policy_config.model_predictive_rl.do_action_clip = True
         policy_config.model_predictive_rl.planning_width = args.planning_width
     if args.sparse_search:
         policy_config.model_predictive_rl.sparse_search = True
