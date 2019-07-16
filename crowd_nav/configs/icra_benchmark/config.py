@@ -148,7 +148,7 @@ class BaseTrainConfig(object):
     train.train_episodes = 10000
     # number of episodes sampled in one training episode
     train.sample_episodes = 1
-    train.target_update_interval = 50
+    train.target_update_interval = 1000
     train.evaluation_interval = 1000
     # the memory pool can roughly store 2K episodes, total size = episodes * 50
     train.capacity = 100000
@@ -166,4 +166,4 @@ class BaseTrainConfig(object):
             self.train.train_episodes = 1
             self.train.checkpoint_interval = self.train.train_episodes
             self.train.evaluation_interval = 1
-            self.train.train_episodes = 15000
+            self.train.target_update_interval = 1

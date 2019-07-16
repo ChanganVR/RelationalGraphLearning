@@ -25,7 +25,7 @@ class PolicyConfig(BasePolicyConfig):
         self.model_predictive_rl.do_action_clip = False
         self.model_predictive_rl.motion_predictor_dims = [64, 5]
         self.model_predictive_rl.value_network_dims = [32, 100, 100, 1]
-        self.model_predictive_rl.share_graph_model = True
+        self.model_predictive_rl.share_graph_model = False
 
 
 class TrainConfig(BaseTrainConfig):
