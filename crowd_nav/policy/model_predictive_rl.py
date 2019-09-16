@@ -368,3 +368,6 @@ class ModelPredictiveRL(Policy):
             to(self.device)
 
         return robot_state_tensor, human_states_tensor
+
+    def get_matrix_A(self):
+        return self.model[0].A

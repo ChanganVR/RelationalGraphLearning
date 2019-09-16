@@ -1,11 +1,5 @@
 # CrowdNavExt
-
-# Added Features
-* Social Force model for human control
-* Unicycle kinematics constraint
-* Field of view
-* Varying number of humans
-
+Codebase for CorL 2019 submission "Relational Graph Learning for Crowd Navigation". 
 
 ## Setup
 1. Install [Python-RVO2](https://github.com/sybrenstuvel/Python-RVO2) library
@@ -16,28 +10,34 @@ pip install -e .
 ```
 
 ## Getting started
-This repository are organized in two parts: gym_crowd/ folder contains the simulation environment and
+This repository are organized in two parts: crowd_sim/ folder contains the simulation environment and
 crowd_nav/ folder contains codes for training and testing the policies. Details of the simulation framework can be found
 [here](crowd_sim/README.md). Below are the instructions for training and testing policies, and they should be executed
 inside the crowd_nav/ folder.
 
 
-1. Train a policy.
+## Replicate the results
+1. LM-SARL-Linear
 ```
-python train.py --policy sarl
+python train.py --config configs/icra_benchmark/sarl.py --output_dir data/sarl
 ```
-2. Test policies with 500 test cases.
+2. RGL-Linear
 ```
-python test.py --policy orca --phase test
-python test.py --policy sarl --model_dir data/output --phase test
+python train.py --config configs/icra_benchmark/mp_linear.py --output_dir data/rgl_linear
 ```
-3. Run policy for one episode and visualize the result.
+3. MP-RGL-Onestep
 ```
-python test.py --policy orca --phase test --visualize --test_case 0
-python test.py --policy sarl --model_dir data/output --phase test --visualize --test_case 0
+python train.py --config configs/icra_benchmark/mp_rgl_onestep.py --output_dir data/mp_rgl_onestep
 ```
-4. Plot training curve
+4. MP-RGL-Multistep
 ```
-python utils/plot.py data/output/output.log
+python train.py --config configs/icra_benchmark/mp_rgl_multistep.py --output_dir data/mp_rgl_multistep
 ```
+The the search depth and width can be modified manually in the config file.
 
+
+## Visualization
+Visualize one test case with trained model
+```
+python test.py --model_dir data/mp_rgl_multistep --visualize
+```
