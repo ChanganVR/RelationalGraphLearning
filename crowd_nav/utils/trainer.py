@@ -429,8 +429,8 @@ def pad_batch(batch):
         return torch.nn.utils.rnn.pad_packed_sequence(packed_sequences, batch_first=True)
 
     states = sort_states(0)
-    values = torch.Tensor([x[1] for x in batch]).unsqueeze(1)
-    rewards = torch.Tensor([x[2] for x in batch]).unsqueeze(1)
+    values = torch.cat([x[1] for x in batch]).unsqueeze(1)
+    rewards = torch.cat([x[2] for x in batch]).unsqueeze(1)
     next_states = sort_states(3)
 
     return states, values, rewards, next_states
