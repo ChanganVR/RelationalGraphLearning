@@ -7,15 +7,12 @@ class Human(Agent):
         super().__init__(config, section)
         self.id = None
 
-    def act(self, ob, t_in_real = None):
+    def act(self, ob):
         """
         The state for human is its full state and all other agents' observable states
         :param ob:
         :return:
         """
         state = JointState(self.get_full_state(), ob)
-        if getattr(self.policy, 'name') == 'realsim_GrandCentral':
-            action = self.policy.predict(state, t_in_real)
-        else:
-            action = self.policy.predict(state)
+        action = self.policy.predict(state)
         return action

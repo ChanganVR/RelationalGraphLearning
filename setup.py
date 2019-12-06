@@ -22,7 +22,9 @@ setup(
         'scipy',
         'torch',
         'torchvision',
-        'seaborn'
+        'seaborn',
+        'tqdm',
+        'tensorboardX'
     ],
     extras_require={
         'test': [

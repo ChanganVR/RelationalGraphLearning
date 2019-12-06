@@ -31,7 +31,6 @@ class MPRLTrainer(object):
         self.share_graph_model = share_graph_model
         self.v_optimizer = None
         self.s_optimizer = None
-        self.pretend_batch_size = 100
 
         # for value update
         self.gamma = 0.9
@@ -60,46 +59,6 @@ class MPRLTrainer(object):
         else:
             logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
                 [name for name, param in list(self.value_estimator.named_parameters())]), self.optimizer_str))
-
-    def optimize_epoch_pretend_batch(self, num_epochs):
-        self.batch_size = 1
-
-        if self.v_optimizer is None:
-            raise ValueError('Learning rate is not set!')
-        if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pack_batch)
-        logging.info('start to optimize epoch in pretend batch manner')
-        average_epoch_loss = 0
-        for epoch in range(num_epochs):
-            logging.debug('{}-th epoch starts'.format(epoch))
-            epoch_loss = 0
-            count_within_batch = 0
-
-            values_list = []
-            outputs_list = []
-            for data in self.data_loader:
-                if count_within_batch < self.pretend_batch_size:
-                    input, value = data
-                    self.v_optimizer.zero_grad()
-                    output = self.value_estimator(input)
-                    values_list.append(value)
-                    outputs_list.append(output)
-                    count_within_batch += 1
-                else:
-                    values = torch.cat(values_list, 0)
-                    outputs = torch.cat(outputs_list, 0)
-                    loss = self.criterion(outputs, values)
-                    loss.backward()
-                    self.v_optimizer.step()
-                    epoch_loss += loss.data.item()
-                    values_list = []
-                    outputs_list = []
-                    count_within_batch = 0
-            logging.debug('{}-th epoch ends'.format(epoch))
-            average_epoch_loss = epoch_loss / len(self.memory)
-            self.writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
-            logging.info('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
-        return average_epoch_loss
 
     def optimize_epoch(self, num_epochs):
         if self.v_optimizer is None:
@@ -147,47 +106,6 @@ class MPRLTrainer(object):
                          epoch_s_loss / len(self.memory))
 
         return
-    
-    def optimize_pretend_batch(self, num_batches):
-        self.pretend_batch_size = 100
-        self.batch_size = 1
-
-        if self.v_optimizer is None:
-            raise ValueError('Learning rate is not set!')
-        if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pack_batch)
-        logging.info('start to optimize:{} batches in pretend batch manner'.format(self.batch_size))
-        losses = 0
-        batch_count = 0
-        count_within_batch = 0
-
-        values_list = []
-        outputs_list = []
-        for data in self.data_loader:
-            if count_within_batch < self.pretend_batch_size:
-                input, value = data
-                self.v_optimizer.zero_grad()
-                output = self.value_estimator(input)
-                values_list.append(value)
-                outputs_list.append(output)
-                count_within_batch += 1
-            else:
-                values = torch.cat(values_list, 0)
-                outputs = torch.cat(outputs_list, 0)
-                loss = self.criterion(outputs, values)
-                loss.backward()
-                self.v_optimizer.step()
-                losses += loss.data.item()
-                values_list = []
-                outputs_list = []
-                count_within_batch = 0
-                batch_count += 1
-            if batch_count > num_batches:
-                break
-        logging.info('end to optimize:{} batches in pretend batch manner'.format(self.batch_size))
-        average_loss = losses / num_batches
-        logging.info('Average loss : %.2E', average_loss)
-        return average_loss
 
     def optimize_batch(self, num_batches, episode):
         if self.v_optimizer is None:
@@ -258,7 +176,6 @@ class VNRLTrainer(object):
         self.batch_size = batch_size
         self.optimizer_str = optimizer_str
         self.optimizer = None
-        self.pretend_batch_size = 100
         self.writer = writer
 
         # for value update
@@ -278,46 +195,6 @@ class VNRLTrainer(object):
             raise NotImplementedError
         logging.info('Lr: {} for parameters {} with {} optimizer'.format(learning_rate, ' '.join(
             [name for name, param in self.model.named_parameters()]), self.optimizer_str))
-
-    def optimize_epoch_pretend_batch(self, num_epochs):
-        self.batch_size = 1
-
-        if self.optimizer is None:
-            raise ValueError('Learning rate is not set!')
-        if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
-        logging.info('start to optimize epoch in pretend batch manner')
-        average_epoch_loss = 0
-        for epoch in range(num_epochs):
-            logging.debug('{}-th epoch starts'.format(epoch))
-            epoch_loss = 0
-            count_within_batch = 0
-
-            values_list = []
-            outputs_list = []
-            for data in self.data_loader:
-                if count_within_batch < self.pretend_batch_size:
-                    input, value = data
-                    self.optimizer.zero_grad()
-                    output = self.model(input)
-                    values_list.append(value)
-                    outputs_list.append(output)
-                    count_within_batch += 1
-                else:
-                    values = torch.cat(values_list, 0)
-                    outputs = torch.cat(outputs_list, 0)
-                    loss = self.criterion(outputs, values)
-                    loss.backward()
-                    self.optimizer.step()
-                    epoch_loss += loss.data.item()
-                    values_list = []
-                    outputs_list = []
-                    count_within_batch = 0
-            logging.debug('{}-th epoch ends'.format(epoch))
-            average_epoch_loss = epoch_loss / len(self.memory)
-            self.writer.add_scalar('IL/average_epoch_loss', average_epoch_loss, epoch)
-            logging.info('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
-        return average_epoch_loss
 
     def optimize_epoch(self, num_epochs):
         if self.optimizer is None:
@@ -343,47 +220,6 @@ class VNRLTrainer(object):
             logging.info('Average loss in epoch %d: %.2E', epoch, average_epoch_loss)
 
         return average_epoch_loss
-
-    def optimize_pretend_batch(self, num_batches):
-        self.pretend_batch_size = 100
-        self.batch_size = 1
-
-        if self.optimizer is None:
-            raise ValueError('Learning rate is not set!')
-        if self.data_loader is None:
-            self.data_loader = DataLoader(self.memory, self.batch_size, shuffle=True, collate_fn=pad_batch)
-        logging.info('start to optimize:{} batches in pretend batch manner'.format(self.batch_size))
-        losses = 0
-        batch_count = 0
-        count_within_batch = 0
-
-        values_list = []
-        outputs_list = []
-        for data in self.data_loader:
-            if count_within_batch < self.pretend_batch_size:
-                input, value = data
-                self.optimizer.zero_grad()
-                output = self.model(input)
-                values_list.append(value)
-                outputs_list.append(output)
-                count_within_batch += 1
-            else:
-                values = torch.cat(values_list, 0)
-                outputs = torch.cat(outputs_list, 0)
-                loss = self.criterion(outputs, values)
-                loss.backward()
-                self.optimizer.step()
-                losses += loss.data.item()
-                values_list = []
-                outputs_list = []
-                count_within_batch = 0
-                batch_count += 1
-            if batch_count > num_batches:
-                break
-        logging.info('end to optimize:{} batches in pretend batch manner'.format(self.batch_size))
-        average_loss = losses / num_batches
-        logging.info('Average loss : %.2E', average_loss)
-        return average_loss
 
     def optimize_batch(self, num_batches, episode=None):
         if self.optimizer is None:
