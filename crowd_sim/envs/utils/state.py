@@ -69,7 +69,10 @@ class JointState(object):
             robot_state_tensor = robot_state_tensor.unsqueeze(0)
             human_states_tensor = human_states_tensor.unsqueeze(0)
 
-        if device is not None:
+        if device == torch.device('cuda:0'):
+            robot_state_tensor = robot_state_tensor.cuda()
+            human_states_tensor = human_states_tensor.cuda()
+        elif device is not None:
             robot_state_tensor.to(device)
             human_states_tensor.to(device)
 
@@ -79,10 +82,10 @@ class JointState(object):
 def tensor_to_joint_state(state):
     robot_state, human_states = state
 
-    robot_state = robot_state.squeeze().data.numpy()
+    robot_state = robot_state.cpu().squeeze().data.numpy()
     robot_state = FullState(robot_state[0], robot_state[1], robot_state[2], robot_state[3], robot_state[4],
                             robot_state[5], robot_state[6], robot_state[7], robot_state[8])
-    human_states = human_states.squeeze(0).data.numpy()
+    human_states = human_states.cpu().squeeze(0).data.numpy()
     human_states = [ObservableState(human_state[0], human_state[1], human_state[2], human_state[3],
                                     human_state[4]) for human_state in human_states]
 
