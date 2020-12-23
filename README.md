@@ -1,6 +1,6 @@
 # RelationalGraphLearning
-This repository contains the codes for our paper, which is in submission to ICRA 2020. 
-For more details, please refer to the [preprint](https://github.com/ChanganVR/RelationalGraphLearning)
+This repository contains the codes for our paper, which is accepted at IROS 2020. 
+For more details, please refer to the [paper](https://arxiv.org/abs/1909.13165).
 
 
 ## Abstract
@@ -62,20 +62,16 @@ python utils/plot.py data/output/output.log
 ## Citation
 If you find the codes or paper useful for your research, please cite the following papers:
 ```
-@misc{chen2019relational,
+@inproceedings{chen2020relational,
     title={Relational Graph Learning for Crowd Navigation},
     author={Changan Chen and Sha Hu and Payam Nikdel and Greg Mori and Manolis Savva},
-    year={2019},
-    eprint={1909.13165},
-    archivePrefix={arXiv},
-    primaryClass={cs.RO}
+    year={2020},
+    booktitle={IROS}
 }
-@misc{chen2018crowdrobot,
+@inproceedings{chen2019crowdnav,
     title={Crowd-Robot Interaction: Crowd-aware Robot Navigation with Attention-based Deep Reinforcement Learning},
     author={Changan Chen and Yuejiang Liu and Sven Kreiss and Alexandre Alahi},
-    year={2018},
-    eprint={1809.08835},
-    archivePrefix={arXiv},
-    primaryClass={cs.RO}
+    year={2019},
+    booktitle={ICRA}
 }
 ```
