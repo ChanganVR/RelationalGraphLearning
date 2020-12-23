@@ -61,7 +61,7 @@ python utils/plot.py data/output/output.log
 
 ## Citation
 If you find the codes or paper useful for your research, please cite the following papers:
-```
+```bibtex
 @inproceedings{chen2020relational,
     title={Relational Graph Learning for Crowd Navigation},
     author={Changan Chen and Sha Hu and Payam Nikdel and Greg Mori and Manolis Savva},
